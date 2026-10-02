@@ -2,7 +2,7 @@ const jwt = require("jsonwebtoken");
 
 const db = require("../../config/knexfile");
 
-const { hashPassword, comparePassword } = require("../../utils/hashHelper");
+const { hashPassword, comparePassword } = require("../../utils/hashhelper");
 
 const { successResponse, errorResponse } = require("../../utils/response");
 
@@ -69,28 +69,19 @@ const login = async (req, res) => {
       },
     );
 
-    // Hash tokens
-    const accessTokenHash = await hashPassword(accessToken);
-    const refreshTokenHash = await hashPassword(refreshToken);
-
     // Get expiry dates from JWT payload itself
-    const accessTokenPayload = jwt.decode(accessToken);
-    const refreshTokenPayload = jwt.decode(refreshToken);
-
-    const accessTokenExpiresAt = new Date(accessTokenPayload.exp * 1000);
-
-    const refreshTokenExpiresAt = new Date(refreshTokenPayload.exp * 1000);
+    const accessTokenExpiresAt = new Date(jwt.decode(accessToken).exp * 1000);
+    const refreshTokenExpiresAt = new Date(jwt.decode(refreshToken).exp * 1000);
 
     // Save tokens
     await db("user_tokens").insert({
       user_id: user.id,
-      access_token_hash: accessTokenHash,
-      refresh_token_hash: refreshTokenHash,
+      access_token: accessToken,
+      refresh_token: refreshToken,
       access_token_expires_at: accessTokenExpiresAt,
       refresh_token_expires_at: refreshTokenExpiresAt,
       is_revoked: false,
     });
-
     return successResponse(
       res,
       {
@@ -188,9 +179,118 @@ const register = async (req, res) => {
   }
 };
 
+const refreshToken = async (req, res) => {
+  try {
+    // Get refresh token from header
+    const incomingRefreshToken = req.headers["x-refresh-token"];
 
+    if (!incomingRefreshToken) {
+      return errorResponse(res, "Refresh token is required", 401);
+    }
+
+    // Verify refresh token JWT
+    let decodedToken;
+
+    try {
+      decodedToken = jwt.verify(
+        incomingRefreshToken,
+        process.env.JWT_REFRESH_SECRET,
+      );
+    } catch (error) {
+      return errorResponse(res, "Invalid or expired refresh token", 401);
+    }
+
+
+    // Find valid token record (compare the stored refresh token)
+    const tokenRecord = await db("user_tokens")
+      .where({
+        refresh_token: incomingRefreshToken,
+        user_id: decodedToken.userId,
+        is_revoked: false,
+      })
+      .where("refresh_token_expires_at", ">", new Date())
+      .first();
+
+    if (!tokenRecord) {
+      return errorResponse(res, "Refresh token is invalid or expired", 401);
+    }
+
+    // Get user
+    const user = await db("users")
+      .where({
+        id: decodedToken.userId,
+        is_active: true,
+      })
+      .first();
+
+    if (!user) {
+      return errorResponse(
+        res,
+        "User account is inactive or does not exist",
+        401,
+      );
+    }
+
+    // Get access token expiry from environment
+    const accessTokenExpiresIn = process.env.JWT_ACCESS_EXPIRES_IN || "15m";
+
+    // Generate new access token
+    const newAccessToken = jwt.sign(
+      {
+        userId: user.id,
+        role: user.role,
+        fullName: user.full_name,
+        branchId: user.branch_id,
+        email: user.email,
+      },
+      process.env.JWT_ACCESS_SECRET,
+      {
+        expiresIn: accessTokenExpiresIn,
+      },
+    );
+
+
+    // Save new access token
+    const newAccessTokenExpiresAt = new Date(
+      jwt.decode(newAccessToken).exp * 1000,
+    );
+
+    await db("user_tokens").where("id", tokenRecord.id).update({
+      access_token: newAccessToken,
+      access_token_expires_at: newAccessTokenExpiresAt,
+      updated_at: new Date(),
+    });
+
+    // Return new access token + same refresh token
+    return successResponse(
+      res,
+      {
+        accessToken: newAccessToken,
+        refreshToken: incomingRefreshToken,
+
+        user: {
+          id: user.id,
+          fullName: user.full_name,
+          email: user.email,
+          role: user.role,
+          branchId: user.branch_id,
+        },
+      },
+      "Token refreshed successfully",
+    );
+  } catch (error) {
+    console.error("Refresh token error:", error);
+
+    return errorResponse(
+      res,
+      "Something went wrong while refreshing token",
+      500,
+    );
+  }
+};
 
 module.exports = {
   register,
   login,
+  refreshToken,
 };

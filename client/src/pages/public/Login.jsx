@@ -1,8 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+
 import { useAuthStore } from "@/store/auth";
+import { login } from "@/api/auth/authApi";
 
 import { Button } from "@/components/ui/button";
+
 import {
   Card,
   CardContent,
@@ -10,32 +13,65 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 function Login() {
   const navigate = useNavigate();
+
   const setAuth = useAuthStore((state) => state.setAuth);
+  const isLoading = useAuthStore((state) => state.isLoading);
+  const setLoading = useAuthStore((state) => state.setLoading);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleSubmit = (event) => {
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
-    // Temporary authentication.
-    // This will be replaced with the real API login.
-    setAuth({
-      accessToken: "temporary-token",
-      user: {
-        id: 1,
-        name: "Admin",
-        email,
-        role: "owner",
-      },
-    });
+    // Prevent duplicate requests
+    if (isLoading) {
+      return;
+    }
 
-    navigate("/dashboard", { replace: true });
+    setErrorMessage("");
+    setLoading(true);
+
+    try {
+      const response = await login(email.trim(), password);
+
+      const data = response.data?.data;
+
+      if (!data?.accessToken || !data?.refreshToken || !data?.user) {
+        throw new Error("Invalid login response");
+      }
+
+      // Persist authentication state
+      setAuth({
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        user: data.user,
+      });
+
+      // Navigate after successful login
+      navigate("/dashboard", {
+        replace: true,
+      });
+    } catch (error) {
+      console.error("Login error:", error);
+
+      const message =
+        error.response?.data?.message ||
+        "Unable to sign in. Please check your credentials.";
+
+      setErrorMessage(message);
+
+      // Make sure loading stops on error
+      setLoading(false);
+    }
   };
 
   return (
@@ -58,6 +94,7 @@ function Login() {
                 placeholder="admin@example.com"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
+                disabled={isLoading}
                 required
               />
             </div>
@@ -71,12 +108,17 @@ function Login() {
                 placeholder="••••••••"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
+                disabled={isLoading}
                 required
               />
             </div>
 
-            <Button type="submit" className="w-full">
-              Sign in
+            {errorMessage && (
+              <p className="text-sm text-destructive">{errorMessage}</p>
+            )}
+
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? "Signing in..." : "Sign in"}
             </Button>
           </form>
         </CardContent>

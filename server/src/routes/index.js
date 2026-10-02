@@ -1,11 +1,14 @@
 const express = require("express");
 
 const authRoutes = require("./auth/authRoute");
+const { getDemoUsers } = require("./demo/demoRoutes");
+const tokenVerify = require("../middleware/auth/tokenverify");
 
 const router = express.Router();
 
 // Authentication routes
 router.use("/auth", authRoutes);
+router.get("/demo", tokenVerify, getDemoUsers);
 
 // Future feature routes
 // router.use("/users", userRoutes);
