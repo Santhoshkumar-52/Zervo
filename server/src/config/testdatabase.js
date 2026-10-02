@@ -1,4 +1,4 @@
-const db = require("./database");
+const db = require("./knexfile");
 
 const testDatabase = async () => {
   try {
