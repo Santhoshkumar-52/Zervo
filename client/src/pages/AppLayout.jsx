@@ -1,31 +1,53 @@
+﻿
 import { Outlet } from "react-router-dom";
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
+import AppSidebar from "@/components/additonal/Sidebar";
+import ThemeSwitcher from "@/components/additonal/ThemeSwitcher";
 
-function AppLayout() {
+
+
+export default function AppLayout() {
   return (
-    <div className="flex min-h-screen">
+    <SidebarProvider>
       {/* Sidebar */}
-      <aside className="w-64 border-r bg-background">
-        <div className="flex h-16 items-center border-b px-6">
-          <h1 className="text-lg font-semibold">Zervo Gym</h1>
-        </div>
+      <AppSidebar />
 
-        <nav className="p-4">{/* Navigation will be added here */}</nav>
-      </aside>
+      {/* Main area */}
+      <SidebarInset className="min-w-0">
+        {/* Top header */}
+        <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur">
+          <SidebarTrigger className="-ml-1" />
 
-      {/* Main application area */}
-      <div className="flex min-w-0 flex-1 flex-col">
-        {/* Header */}
-        <header className="flex h-16 items-center border-b px-6">
-          <h2 className="text-lg font-semibold">Gym Management</h2>
+          <div className="h-5 w-px bg-border" />
+
+          <div className="flex flex-col">
+            <span className="text-sm font-semibold">
+              Zervo Gym
+            </span>
+
+            <span className="text-xs text-muted-foreground">
+              Management System
+            </span>
+          </div>
+
+          {/* Color + light/dark picker (sets class on <html>) */}
+          <div className="ml-auto">
+            <ThemeSwitcher />
+          </div>
         </header>
 
-        {/* Page content */}
-        <main className="flex-1 bg-muted/40 p-6">
-          <Outlet />
+        {/* Page */}
+        <main className="flex-1">
+          <div className="mx-auto w-full max-w-[1600px] p-4 md:p-6">
+            <Outlet />
+          </div>
         </main>
-      </div>
-    </div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }
 
-export default AppLayout;
