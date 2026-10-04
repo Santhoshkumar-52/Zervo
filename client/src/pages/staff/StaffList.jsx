@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   keepPreviousData,
   useMutation,
@@ -32,7 +32,6 @@ function StaffList() {
 
   // The fetched list lives in the store too.
   const staff = useStaffStore((state) => state.staff);
-  
   const total = useStaffStore((state) => state.total);
   const setStaff = useStaffStore((state) => state.setStaff);
   const updateStaffInList = useStaffStore((state) => state.updateStaffInList);
@@ -40,10 +39,13 @@ function StaffList() {
     (state) => state.removeStaffFromList,
   );
 
-  // Delete confirmation dialog. `staffToDelete` is kept while the dialog
-  // animates closed so its text does not flicker.
+  // Kept while the dialog animates closed so its text does not flicker.
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [staffToDelete, setStaffToDelete] = useState(null);
+
+  // { staff, isActive } for the status confirmation dialog.
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [statusChange, setStatusChange] = useState(null);
 
   // `search` is what the input shows; `debouncedSearch` is what hits the API.
   const [debouncedSearch, setDebouncedSearch] = useState(search.trim());
@@ -113,12 +115,12 @@ function StaffList() {
     onError: (err) => notifyError(getApiError(err, "Failed to delete staff")),
   });
 
+  // mutateAsync: the dialogs wait for it and stay open if the request fails.
   const {
-    mutate: changeStatus,
+    mutateAsync: changeStatus,
     isPending: isStatusPending,
     variables: statusVars,
   } = statusMutation;
-  // mutateAsync: the dialog waits for it and stays open if the delete fails.
   const { mutateAsync: removeStaff } = deleteMutation;
 
   const columns = useMemo(
@@ -131,11 +133,15 @@ function StaffList() {
           setStaffToDelete(staff);
           setDeleteOpen(true);
         },
-        onToggleStatus: (staff, isActive) => changeStatus({ staff, isActive }),
+        // Ask for confirmation first; the switch only changes after confirming.
+        onToggleStatus: (staff, isActive) => {
+          setStatusChange({ staff, isActive });
+          setStatusOpen(true);
+        },
         isStatusUpdating: (staff) =>
           isStatusPending && statusVars?.staff.id === staff.id,
       }),
-    [changeStatus, isStatusPending, statusVars],
+    [isStatusPending, statusVars],
   );
 
   return (
@@ -148,6 +154,7 @@ function StaffList() {
 
       <DataTable
         manual
+        fixedRows={7}
         columns={columns}
         data={staff}
         getRowId={getRowId}
@@ -162,10 +169,31 @@ function StaffList() {
       />
 
       <AppAlertDialog
+        open={statusOpen}
+        onOpenChange={setStatusOpen}
+        title={`${statusChange?.isActive ? "Activate" : "Deactivate"} ${
+          statusChange?.staff.full_name ?? "staff member"
+        }?`}
+        description={
+          statusChange?.isActive
+            ? "This staff member will be marked as active."
+            : "This staff member will be marked as inactive."
+        }
+        confirmText={statusChange?.isActive ? "Activate" : "Deactivate"}
+        variant={statusChange?.isActive ? "default" : "destructive"}
+        isLoading={
+          statusChange
+            ? isStatusPending && statusVars?.staff.id === statusChange.staff.id
+            : false
+        }
+        onConfirm={() => changeStatus(statusChange)}
+      />
+
+      <AppAlertDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         title={`Delete ${staffToDelete?.full_name ?? "staff member"}?`}
-        description="This permanently removes the staff member and cannot be undone."
+        description="This removes the staff member from the list. This action cannot be undone from the app."
         confirmText="Delete"
         variant="destructive"
         isLoading={deleteMutation.isPending}
