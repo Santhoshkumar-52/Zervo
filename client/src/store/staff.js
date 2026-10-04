@@ -54,13 +54,13 @@ export const useStaffStore = create((set) => ({
   updateStaffInList: (id, changes) =>
     set((state) => ({
       staff: state.staff.map((member) =>
-        member.staff_Id === id ? { ...member, ...changes } : member,
+        member.id === id ? { ...member, ...changes } : member,
       ),
     })),
 
   removeStaffFromList: (id) =>
     set((state) => ({
-      staff: state.staff.filter((member) => member.staff_Id !== id),
+      staff: state.staff.filter((member) => member.id !== id),
       total: Math.max(0, state.total - 1),
     })),
 

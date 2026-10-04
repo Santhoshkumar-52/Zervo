@@ -7,11 +7,7 @@ import {
 } from "@tanstack/react-query";
 
 import DataTable from "@/components/additonal/Datatable/DataTable";
-import {
-  deleteStaff,
-  getStaff,
-  updateStaffStatus,
-} from "@/api/staff/staffApi";
+import { deleteStaff, getStaff, updateStaffStatus } from "@/api/staff/staffApi";
 import { useStaffStore } from "@/store/staff";
 import { notifyError, notifyInfo, notifySuccess } from "@/utils/notification";
 
@@ -32,19 +28,27 @@ function StaffList() {
   const setSearch = useStaffStore((state) => state.setSearch);
   const pagination = useStaffStore((state) => state.pagination);
   const setPagination = useStaffStore((state) => state.setPagination);
-  const reset = useStaffStore((state) => state.reset);
+
+  // The fetched list lives in the store too.
+  const staff = useStaffStore((state) => state.staff);
+  const total = useStaffStore((state) => state.total);
+  const setStaff = useStaffStore((state) => state.setStaff);
+  const updateStaffInList = useStaffStore((state) => state.updateStaffInList);
+  const removeStaffFromList = useStaffStore(
+    (state) => state.removeStaffFromList,
+  );
 
   // `search` is what the input shows; `debouncedSearch` is what hits the API.
   const [debouncedSearch, setDebouncedSearch] = useState(search.trim());
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS);
+    const timer = setTimeout(
+      () => setDebouncedSearch(search.trim()),
+      SEARCH_DEBOUNCE_MS,
+    );
 
     return () => clearTimeout(timer);
   }, [search]);
-
-  // Start fresh each time the page is left.
-  useEffect(() => reset, [reset]);
 
   const page = pagination.pageIndex + 1;
   const limit = pagination.pageSize;
@@ -65,6 +69,11 @@ function StaffList() {
     placeholderData: keepPreviousData,
   });
 
+  // Copy each fetched page into the store (the table renders from the store).
+  useEffect(() => {
+    if (data) setStaff({ staff: data.staff, total: data.pagination.total });
+  }, [data, setStaff]);
+
   const errorMessage = getApiError(error, "Failed to load staff");
 
   useEffect(() => {
@@ -80,6 +89,7 @@ function StaffList() {
       notifySuccess(
         `${staff.full_name} marked as ${isActive ? "active" : "inactive"}`,
       );
+      updateStaffInList(staff.id, { is_active: isActive });
       invalidateStaff();
     },
     onError: (err) =>
@@ -90,13 +100,17 @@ function StaffList() {
     mutationFn: (staff) => deleteStaff(staff.id),
     onSuccess: (_, staff) => {
       notifySuccess(`${staff.full_name} deleted`);
+      removeStaffFromList(staff.id);
       invalidateStaff();
     },
     onError: (err) => notifyError(getApiError(err, "Failed to delete staff")),
   });
 
-  const { mutate: changeStatus, isPending: isStatusPending, variables: statusVars } =
-    statusMutation;
+  const {
+    mutate: changeStatus,
+    isPending: isStatusPending,
+    variables: statusVars,
+  } = statusMutation;
   const { mutate: removeStaff } = deleteMutation;
 
   const columns = useMemo(
@@ -106,7 +120,9 @@ function StaffList() {
         onEdit: (staff) =>
           notifyInfo(`Editing ${staff.full_name} is coming soon`),
         onDelete: (staff) => {
-          if (window.confirm(`Delete ${staff.full_name}? This cannot be undone.`)) {
+          if (
+            window.confirm(`Delete ${staff.full_name}? This cannot be undone.`)
+          ) {
             removeStaff(staff);
           }
         },
@@ -128,9 +144,9 @@ function StaffList() {
       <DataTable
         manual
         columns={columns}
-        data={data?.staff ?? []}
+        data={staff}
         getRowId={getRowId}
-        rowCount={data?.pagination?.total ?? 0}
+        rowCount={total}
         pagination={pagination}
         onPaginationChange={setPagination}
         globalFilter={search}
