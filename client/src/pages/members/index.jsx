@@ -1,24 +1,20 @@
-import { Users } from "lucide-react";
-
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import Title from "@/components/additonal/Title";
-import MemberTabs from "./MemberTabs";
+import MembersList from "./MembersList";
 
 function Members() {
   return (
-    <div className="space-y-2">
+    <div className="space-y-4">
       <Title
         title="Members"
         description="Manage gym members, their branches and assigned trainers."
       />
-      {/* <div className="mx-auto"> */}
-      <MemberTabs />
+
+      <Card>
+        <CardContent>
+          <MembersList />
+        </CardContent>
+      </Card>
     </div>
   );
 }

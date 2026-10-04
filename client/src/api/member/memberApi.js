@@ -13,3 +13,13 @@ export const getMembers = (params = {}) => {
 
   return api.get("/member", { params: cleanParams });
 };
+
+// NOTE: the server currently only implements GET /member.
+// The two calls below assume these endpoints will be added:
+
+// PATCH /api/member/:id/status   body: { is_active: boolean }
+export const updateMemberStatus = (id, isActive) =>
+  api.patch(`/member/${id}/status`, { is_active: isActive });
+
+// DELETE /api/member/:id
+export const deleteMember = (id) => api.delete(`/member/${id}`);

@@ -1,30 +1,25 @@
-import { toast } from "react-toastify";
+import { useAlertStore } from "@/store/alert";
 import { useSettingsStore } from "@/store/setting";
 
 const canNotify = () => {
   return useSettingsStore.getState().notificationsEnabled;
 };
 
-export const notifySuccess = (message) => {
+// options: { title?: string, duration?: number (ms, 0 = persistent) }
+const notify = (type, message, options = {}) => {
   if (!canNotify()) return;
 
-  toast.success(message);
+  useAlertStore.getState().addAlert({ type, message, ...options });
 };
 
-export const notifyError = (message) => {
-  if (!canNotify()) return;
+export const notifySuccess = (message, options) =>
+  notify("success", message, options);
 
-  toast.error(message);
-};
+export const notifyError = (message, options) =>
+  notify("error", message, options);
 
-export const notifyInfo = (message) => {
-  if (!canNotify()) return;
+export const notifyInfo = (message, options) =>
+  notify("info", message, options);
 
-  toast.info(message);
-};
-
-export const notifyWarning = (message) => {
-  if (!canNotify()) return;
-
-  toast.warning(message);
-};
+export const notifyWarning = (message, options) =>
+  notify("warning", message, options);

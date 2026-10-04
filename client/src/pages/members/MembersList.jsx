@@ -1,18 +1,31 @@
-import { useEffect, useState } from "react";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+﻿import { useEffect, useMemo, useState } from "react";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import DataTable from "@/components/additonal/Datatable/DataTable";
-import { getMembers } from "@/api/member/memberApi";
-import { notifyError } from "@/utils/notification";
+import {
+  deleteMember,
+  getMembers,
+  updateMemberStatus,
+} from "@/api/member/memberApi";
+import { notifyError, notifyInfo, notifySuccess } from "@/utils/notification";
 
-import { MembersColumns } from "./MembersColumns";
+import { getMembersColumns } from "./MembersColumns";
 
 const PAGE_SIZE = 10;
 const SEARCH_DEBOUNCE_MS = 400;
 
 const getRowId = (row) => String(row.member_Id);
 
+const getApiError = (error, fallback) =>
+  error?.response?.data?.message || error?.message || fallback;
+
 function MembersList() {
+  const queryClient = useQueryClient();
   const [pagination, setPagination] = useState({
     pageIndex: 0,
     pageSize: PAGE_SIZE,
@@ -61,6 +74,54 @@ function MembersList() {
     if (isError) notifyError(errorMessage);
   }, [isError, errorMessage]);
 
+  const invalidateMembers = () =>
+    queryClient.invalidateQueries({ queryKey: ["members"] });
+
+  const statusMutation = useMutation({
+    mutationFn: ({ member, isActive }) =>
+      updateMemberStatus(member.member_Id, isActive),
+    onSuccess: (_, { member, isActive }) => {
+      notifySuccess(
+        `${member.member_name} marked as ${isActive ? "active" : "inactive"}`,
+      );
+      invalidateMembers();
+    },
+    onError: (err) =>
+      notifyError(getApiError(err, "Failed to update member status")),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (member) => deleteMember(member.member_Id),
+    onSuccess: (_, member) => {
+      notifySuccess(`${member.member_name} deleted`);
+      invalidateMembers();
+    },
+    onError: (err) => notifyError(getApiError(err, "Failed to delete member")),
+  });
+
+  const { mutate: changeStatus, isPending: isStatusPending, variables: statusVars } =
+    statusMutation;
+  const { mutate: removeMember } = deleteMutation;
+
+  const columns = useMemo(
+    () =>
+      getMembersColumns({
+        // TODO: navigate to the edit screen once that route exists.
+        onEdit: (member) =>
+          notifyInfo(`Editing ${member.member_name} is coming soon`),
+        onDelete: (member) => {
+          if (window.confirm(`Delete ${member.member_name}? This cannot be undone.`)) {
+            removeMember(member);
+          }
+        },
+        onToggleStatus: (member, isActive) =>
+          changeStatus({ member, isActive }),
+        isStatusUpdating: (member) =>
+          isStatusPending && statusVars?.member.member_Id === member.member_Id,
+      }),
+    [changeStatus, removeMember, isStatusPending, statusVars],
+  );
+
   return (
     <div className="space-y-4">
       {isError && (
@@ -71,7 +132,7 @@ function MembersList() {
 
       <DataTable
         manual
-        columns={MembersColumns}
+        columns={columns}
         data={data?.members ?? []}
         getRowId={getRowId}
         rowCount={data?.pagination?.total ?? 0}

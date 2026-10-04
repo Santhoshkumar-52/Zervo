@@ -1,9 +1,14 @@
-import { MoreHorizontal } from "lucide-react";
-
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 
-export const MembersColumns = [
+import MemberActions from "./MemberActions";
+
+// Handlers: { onEdit, onDelete, onToggleStatus, isStatusUpdating(member) }
+export const getMembersColumns = ({
+  onEdit,
+  onDelete,
+  onToggleStatus,
+  isStatusUpdating,
+} = {}) => [
   {
     accessorKey: "id",
     header: "Member ID",
@@ -51,21 +56,14 @@ export const MembersColumns = [
     id: "actions",
     header: "Actions",
     enableSorting: false,
-    cell: ({ row }) => {
-      const member = row.original;
-
-      return (
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label={`Actions for ${member.member_name}`}
-          onClick={() => {
-            console.log("Member:", member);
-          }}
-        >
-          <MoreHorizontal />
-        </Button>
-      );
-    },
+    cell: ({ row }) => (
+      <MemberActions
+        member={row.original}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        onToggleStatus={onToggleStatus}
+        isStatusUpdating={isStatusUpdating?.(row.original) ?? false}
+      />
+    ),
   },
 ];

@@ -34,7 +34,7 @@ import DataTableToolbar from "./DataTableToolbar";
 // so the table area is always: header + fixedRows * row height.
 // Keep these numbers in sync with the `h-10` / `h-12` classes below.
 const HEADER_HEIGHT_REM = 2.5;
-const ROW_HEIGHT_REM = 3;
+const ROW_HEIGHT_REM = 2.3;
 
 // TanStack Table v9: every feature, row model and fn registry must be
 // registered explicitly. globalFilteringFeature REQUIRES columnFilteringFeature,
