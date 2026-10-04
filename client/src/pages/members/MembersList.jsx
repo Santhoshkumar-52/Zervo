@@ -110,6 +110,7 @@ function MembersList() {
 
       <DataTable
         manual
+        fixedRows={7}
         columns={columns}
         data={members}
         getRowId={getRowId}
@@ -147,7 +148,9 @@ function MembersList() {
         confirmText={statusChange?.isActive ? "Activate" : "Deactivate"}
         variant={statusChange?.isActive ? "default" : "destructive"}
         isLoading={
-          statusChange ? statusUpdatingIds.includes(statusChange.member.id) : false
+          statusChange
+            ? statusUpdatingIds.includes(statusChange.member.id)
+            : false
         }
         onConfirm={() =>
           toggleStatus(statusChange.member, statusChange.isActive)

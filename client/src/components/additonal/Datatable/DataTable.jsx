@@ -34,7 +34,10 @@ import DataTableToolbar from "./DataTableToolbar";
 // so the table area is always: header + fixedRows * row height.
 // Keep these numbers in sync with the `h-10` / `h-12` classes below.
 const HEADER_HEIGHT_REM = 2.5;
-const ROW_HEIGHT_REM = 2.3;
+const ROW_HEIGHT_REM = 3;
+
+// Rows-per-page choices. The server caps `limit` at 100.
+const DEFAULT_PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 // TanStack Table v9: every feature, row model and fn registry must be
 // registered explicitly. globalFilteringFeature REQUIRES columnFilteringFeature,
@@ -77,9 +80,14 @@ function SortIcon({ direction }) {
  * `isLoading` (first load, no data yet) shows skeleton rows.
  * `isFetching` (refetch with previous data still on screen) dims the table.
  *
- * Height: the table area is always at least `fixedRows` rows tall (default 10),
- * so the pagination bar never jumps, whether the page has 10 rows, 2 rows,
- * is loading, or is empty. A page size larger than `fixedRows` just grows.
+ * Height: the table area is always exactly `fixedRows` rows tall (default 10),
+ * so the pagination bar never jumps, whether the page has 20 rows, 2 rows,
+ * is loading, or is empty. When a page has more rows than fit (e.g. a page
+ * size of 20 or 50) the table scrolls inside itself and the header stays put.
+ *
+ * Rows per page: the pagination bar has a page-size selector built from
+ * `pageSizeOptions`. Changing it goes through `onPaginationChange` in server
+ * mode, so the parent just refetches with the new `pageSize`.
  */
 function DataTable({
   columns,
@@ -89,6 +97,7 @@ function DataTable({
   showToolbar = true,
   enableSelection = false,
   pageSize = 10,
+  pageSizeOptions = DEFAULT_PAGE_SIZE_OPTIONS,
   fixedRows = 10,
   getRowId,
 
@@ -128,8 +137,9 @@ function DataTable({
   const visibleColumnCount = table.getVisibleLeafColumns().length || 1;
   const skeletonRowCount = Math.min(table.state.pagination.pageSize, fixedRows);
 
-  // +2px because the bordered wrapper is border-box (1px top + 1px bottom).
-  const tableMinHeight = `calc(${HEADER_HEIGHT_REM + fixedRows * ROW_HEIGHT_REM}rem + 2px)`;
+  // +4px: 2px for the bordered wrapper (border-box) and 2px of slack so exactly
+  // `fixedRows` rows never trigger a scrollbar from sub-pixel row heights.
+  const tableHeight = `calc(${HEADER_HEIGHT_REM + fixedRows * ROW_HEIGHT_REM}rem + 4px)`;
 
   return (
     <div className="flex w-full flex-col gap-4">
@@ -140,16 +150,23 @@ function DataTable({
             searchPlaceholder={searchPlaceholder}
           />
         )}
-        {showPagination && <DataTablePagination table={table} />}
+        {showPagination && (
+          <DataTablePagination
+            table={table}
+            pageSizeOptions={pageSizeOptions}
+          />
+        )}
       </section>
 
       <div
-        style={{ minHeight: tableMinHeight }}
-        className={`rounded-md border transition-opacity ${
+        style={{ height: tableHeight }}
+        className={`overflow-hidden rounded-md border transition-opacity ${
           isFetching && !isLoading ? "opacity-60" : ""
         }`}
       >
-        <Table>
+        {/* The table container is the scroller (both axes), so the sticky
+            header below sticks to it. */}
+        <Table containerClassName="h-full overflow-auto">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
@@ -160,7 +177,7 @@ function DataTable({
                   return (
                     <TableHead
                       key={header.id}
-                      className="h-10"
+                      className="sticky top-0 z-10 h-10 bg-background shadow-[inset_0_-1px_0_0_var(--border)]"
                       aria-sort={
                         sorted === "asc"
                           ? "ascending"
