@@ -39,7 +39,8 @@ const authenticate = async (req, res, next) => {
         code: "TOKEN_INVALID",
       });
     }
-
+    console.log("TOKEN FROM REQUEST:", token);
+    console.log("DECODED:", decoded);
     // 3. Compare with the token saved in the DB (live, not revoked, user active)
     const session = await db("user_tokens as t")
       .join("users as u", "u.id", "t.user_id")

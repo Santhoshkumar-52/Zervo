@@ -1,5 +1,4 @@
-﻿
-import { Link, useLocation } from "react-router-dom";
+﻿import { Link, useLocation } from "react-router-dom";
 import {
   BarChart3,
   CreditCard,
@@ -23,7 +22,9 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { useAuthStore } from "@/store/auth";
 
+const { logout } = useAuthStore.getState();
 const mainNavigation = [
   {
     title: "Dashboard",
@@ -70,21 +71,14 @@ export default function AppSidebar() {
 
   const isActive = (url) => {
     if (url === "/dashboard") {
-      return (
-        location.pathname === "/" ||
-        location.pathname === "/dashboard"
-      );
+      return location.pathname === "/" || location.pathname === "/dashboard";
     }
 
     return location.pathname.startsWith(url);
   };
 
   return (
-    <Sidebar
-      collapsible="icon"
-      variant="sidebar"
-      className="border-r"
-    >
+    <Sidebar collapsible="icon" variant="sidebar" className="border-r">
       {/* ------------------------------------------------
           HEADER
       ------------------------------------------------ */}
@@ -97,22 +91,20 @@ export default function AppSidebar() {
               className="hover:bg-muted"
               render={<Link to="/dashboard" />}
             >
-                {/* Logo */}
-                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <Dumbbell className="size-5" />
-                </div>
+              {/* Logo */}
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                <Dumbbell className="size-5" />
+              </div>
 
-                {/* Brand */}
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">
-                    Zervo Gym
-                  </span>
+              {/* Brand */}
+              <div className="grid flex-1 text-left text-sm leading-tight">
+                <span className="truncate font-semibold">Zervo Gym</span>
 
-                  <span className="truncate text-xs text-muted-foreground">
-                    Management System
-                  </span>
-                </div>
-              </SidebarMenuButton>
+                <span className="truncate text-xs text-muted-foreground">
+                  Management System
+                </span>
+              </div>
+            </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
@@ -120,7 +112,7 @@ export default function AppSidebar() {
       {/* ------------------------------------------------
           CONTENT
       ------------------------------------------------ */}
-      <SidebarContent className="px-2 py-4">
+      <SidebarContent className="px-2 py-4 text-xl">
         {/* Management */}
         <SidebarGroup>
           <SidebarGroupLabel className="px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -141,9 +133,9 @@ export default function AppSidebar() {
                       className="h-10 px-3"
                       render={<Link to={item.url} />}
                     >
-                        <Icon className="size-4" />
-                        <span>{item.title}</span>
-                      </SidebarMenuButton>
+                      <Icon className="size-4" />
+                      <span>{item.title}</span>
+                    </SidebarMenuButton>
                   </SidebarMenuItem>
                 );
               })}
@@ -171,9 +163,9 @@ export default function AppSidebar() {
                       className="h-10 px-3"
                       render={<Link to={item.url} />}
                     >
-                        <Icon className="size-4" />
-                        <span>{item.title}</span>
-                      </SidebarMenuButton>
+                      <Icon className="size-4" />
+                      <span>{item.title}</span>
+                    </SidebarMenuButton>
                   </SidebarMenuItem>
                 );
               })}
@@ -193,10 +185,7 @@ export default function AppSidebar() {
               tooltip="Logout"
               className="h-10 px-3 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
               onClick={() => {
-                // TODO:
-                // 1. Clear Zustand auth state
-                // 2. Call logout API
-                // 3. Navigate to /login
+                logout();
 
                 console.log("Logout");
               }}
@@ -210,4 +199,3 @@ export default function AppSidebar() {
     </Sidebar>
   );
 }
-

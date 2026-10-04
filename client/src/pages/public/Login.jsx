@@ -16,6 +16,7 @@ import {
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { notifyError, notifySuccess } from "@/utils/notification";
 
 function Login() {
   const navigate = useNavigate();
@@ -48,7 +49,7 @@ function Login() {
       if (!data?.accessToken || !data?.refreshToken || !data?.user) {
         throw new Error("Invalid login response");
       }
-
+      notifySuccess(`Welcome back, ${data.user.fullName}!`);
       // Persist authentication state
       setAuth({
         accessToken: data.accessToken,
@@ -66,7 +67,7 @@ function Login() {
       const message =
         error.response?.data?.message ||
         "Unable to sign in. Please check your credentials.";
-
+      notifyError(message);
       setErrorMessage(message);
 
       // Make sure loading stops on error
@@ -86,7 +87,9 @@ function Login() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label required htmlFor="email">
+                Email
+              </Label>
 
               <Input
                 id="email"
@@ -100,7 +103,7 @@ function Login() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label required htmlFor="password">Password</Label>
 
               <Input
                 id="password"

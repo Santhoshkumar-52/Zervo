@@ -20,7 +20,6 @@ const login = async (req, res) => {
       return errorResponse(res, "Email and password are required", 400);
     }
 
-    // Find user
     const user = await db("users")
       .where({
         email: email.toLowerCase().trim(),
@@ -30,6 +29,31 @@ const login = async (req, res) => {
 
     if (!user) {
       return errorResponse(res, "Invalid email or password", 401);
+    }
+
+    // Check user status
+    if (!user.is_active) {
+      return errorResponse(
+        res,
+        "User account is inactive. Contact admin.",
+        403,
+      );
+    }
+
+    // Check user's branch
+    const branch = await db("branches")
+      .where({
+        id: user.branch_id,
+      })
+      .first();
+
+    if (!branch) {
+      return errorResponse(res, "User branch is not valid", 403);
+    }
+
+    // Check branch status
+    if (!branch.is_active) {
+      return errorResponse(res, "User branch is inactive. Contact Admin", 403);
     }
 
     // Compare password
@@ -200,7 +224,6 @@ const refreshToken = async (req, res) => {
       return errorResponse(res, "Invalid or expired refresh token", 401);
     }
 
-
     // Find valid token record (compare the stored refresh token)
     const tokenRecord = await db("user_tokens")
       .where({
@@ -248,7 +271,6 @@ const refreshToken = async (req, res) => {
         expiresIn: accessTokenExpiresIn,
       },
     );
-
 
     // Save new access token
     const newAccessTokenExpiresAt = new Date(
