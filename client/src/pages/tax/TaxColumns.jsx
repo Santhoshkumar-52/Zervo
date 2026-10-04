@@ -15,7 +15,8 @@ export const getTaxColumns = ({ onEdit, onDelete, onToggleStatus } = {}) => [
   {
     accessorKey: "rate",
     header: "Rate",
-    cell: ({ row }) => `${row.original.rate}%`,
+    // The DB returns a decimal string ("18.00"); show it as 18%.
+    cell: ({ row }) => `${Number(row.original.rate)}%`,
   },
   {
     accessorKey: "description",

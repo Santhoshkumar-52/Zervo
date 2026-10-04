@@ -1,20 +1,53 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import AppAlertDialog from "@/components/additonal/AlertDialog";
 import DataTable from "@/components/additonal/Datatable/DataTable";
+import { useTaxStore } from "@/store/tax";
 
 import EditTaxDialog from "./EditTaxDialog";
 import { getTaxColumns } from "./TaxColumns";
 
+const SEARCH_DEBOUNCE_MS = 400;
+
 const getRowId = (row) => String(row.id);
 
 /**
- * Tax table (UI only). Data and handlers come from the parent; this component
- * owns just which dialog is open.
+ * Tax screen. Everything it shows comes from the tax store, and every change
+ * goes through a store action (API call -> store update -> re-render):
+ *
+ *   list    fetchTaxes      (runs when the page or applied search changes)
+ *   edit    fetchTaxById, updateTax -> row replaced
+ *   status  toggleStatus    -> row replaced
+ *   delete  deleteTax       -> row removed
  */
-function TaxList({ taxes, onUpdate, onDelete, onToggleStatus }) {
+function TaxList() {
+  // ---- Rendered from the store ---------------------------------------
+  const taxes = useTaxStore((state) => state.taxes);
+  const total = useTaxStore((state) => state.total);
+  const search = useTaxStore((state) => state.search);
+  const pagination = useTaxStore((state) => state.pagination);
+  const appliedSearch = useTaxStore((state) => state.appliedSearch);
+  const isLoading = useTaxStore((state) => state.isLoading);
+  const isFetching = useTaxStore((state) => state.isFetching);
+  const error = useTaxStore((state) => state.error);
+  const selectedTax = useTaxStore((state) => state.selectedTax);
+  const isSaving = useTaxStore((state) => state.isSaving);
+  const isDeleting = useTaxStore((state) => state.isDeleting);
+  const statusUpdatingIds = useTaxStore((state) => state.statusUpdatingIds);
+
+  // ---- Store actions -------------------------------------------------
+  const setSearch = useTaxStore((state) => state.setSearch);
+  const applySearch = useTaxStore((state) => state.applySearch);
+  const setPagination = useTaxStore((state) => state.setPagination);
+  const fetchTaxes = useTaxStore((state) => state.fetchTaxes);
+  const selectTax = useTaxStore((state) => state.selectTax);
+  const fetchTaxById = useTaxStore((state) => state.fetchTaxById);
+  const updateTax = useTaxStore((state) => state.updateTax);
+  const toggleStatus = useTaxStore((state) => state.toggleStatus);
+  const deleteTax = useTaxStore((state) => state.deleteTax);
+
+  // ---- Dialog UI state (which dialog is open) ------------------------
   const [editOpen, setEditOpen] = useState(false);
-  const [taxToEdit, setTaxToEdit] = useState(null);
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [taxToDelete, setTaxToDelete] = useState(null);
@@ -22,12 +55,29 @@ function TaxList({ taxes, onUpdate, onDelete, onToggleStatus }) {
   const [statusOpen, setStatusOpen] = useState(false);
   const [statusChange, setStatusChange] = useState(null);
 
+  // Apply the typed search to the list once the user stops typing.
+  useEffect(() => {
+    const timer = setTimeout(
+      () => applySearch(search.trim()),
+      SEARCH_DEBOUNCE_MS,
+    );
+
+    return () => clearTimeout(timer);
+  }, [search, applySearch]);
+
+  // Load the list whenever the page or the applied search changes.
+  useEffect(() => {
+    fetchTaxes();
+  }, [fetchTaxes, appliedSearch, pagination.pageIndex, pagination.pageSize]);
+
   const columns = useMemo(
     () =>
       getTaxColumns({
         onEdit: (tax) => {
-          setTaxToEdit(tax);
+          // Show the row's data straight away, then refresh it by id.
+          selectTax(tax);
           setEditOpen(true);
+          fetchTaxById(tax.id).catch(() => setEditOpen(false));
         },
         onDelete: (tax) => {
           setTaxToDelete(tax);
@@ -39,24 +89,40 @@ function TaxList({ taxes, onUpdate, onDelete, onToggleStatus }) {
           setStatusOpen(true);
         },
       }),
-    [],
+    [selectTax, fetchTaxById],
   );
 
   return (
     <div className="space-y-4">
+      {error && (
+        <p className="text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      )}
+
       <DataTable
+        manual
         fixedRows={7}
         columns={columns}
         data={taxes}
         getRowId={getRowId}
+        rowCount={total}
+        pagination={pagination}
+        onPaginationChange={setPagination}
+        globalFilter={search}
+        onGlobalFilterChange={setSearch}
+        isLoading={isLoading}
+        isFetching={isFetching}
         searchPlaceholder="Search by tax name or description..."
       />
 
+      {/* Edit. The dialog closes only when updateTax resolves. */}
       <EditTaxDialog
         open={editOpen}
         onOpenChange={setEditOpen}
-        tax={taxToEdit}
-        onSubmit={(values, tax) => onUpdate(tax.id, values)}
+        tax={selectedTax}
+        isLoading={isSaving}
+        onSubmit={(values, tax) => updateTax(tax.id, values)}
       />
 
       <AppAlertDialog
@@ -72,7 +138,12 @@ function TaxList({ taxes, onUpdate, onDelete, onToggleStatus }) {
         }
         confirmText={statusChange?.isActive ? "Activate" : "Deactivate"}
         variant={statusChange?.isActive ? "default" : "destructive"}
-        onConfirm={() => onToggleStatus(statusChange.tax, statusChange.isActive)}
+        isLoading={
+          statusChange
+            ? statusUpdatingIds.includes(statusChange.tax.id)
+            : false
+        }
+        onConfirm={() => toggleStatus(statusChange.tax, statusChange.isActive)}
       />
 
       <AppAlertDialog
@@ -82,7 +153,8 @@ function TaxList({ taxes, onUpdate, onDelete, onToggleStatus }) {
         description="This removes the tax from the list. This action cannot be undone."
         confirmText="Delete"
         variant="destructive"
-        onConfirm={() => onDelete(taxToDelete)}
+        isLoading={isDeleting}
+        onConfirm={() => deleteTax(taxToDelete)}
       />
     </div>
   );

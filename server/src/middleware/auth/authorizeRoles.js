@@ -4,6 +4,8 @@
 const authorizeRoles =
   (...allowedRoles) =>
   (req, res, next) => {
+    console.log(req.user);
+    
     if (!req.user || !allowedRoles.includes(req.user.role)) {
       return errorResponse(
         res,

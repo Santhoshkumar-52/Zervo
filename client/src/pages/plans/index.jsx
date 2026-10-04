@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import Title from "@/components/additonal/Title";
 
-import EditPlanDialog from "./EditPlanDialog";
-import PlansList from "./PlansList";
+// import EditPlanDialog from
+//  "./EditPlanDialog";
+// import PlansList from "./PlansList";
 
 // UI-only sample data. Replace with the store / API once it exists.
 const INITIAL_PLANS = [
