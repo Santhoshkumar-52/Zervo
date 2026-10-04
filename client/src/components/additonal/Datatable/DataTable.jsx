@@ -126,19 +126,22 @@ function DataTable({
 
   const rows = table.getRowModel().rows;
   const visibleColumnCount = table.getVisibleLeafColumns().length || 1;
-  const skeletonRowCount = Math.min(
-    table.state.pagination.pageSize,
-    fixedRows,
-  );
+  const skeletonRowCount = Math.min(table.state.pagination.pageSize, fixedRows);
 
   // +2px because the bordered wrapper is border-box (1px top + 1px bottom).
   const tableMinHeight = `calc(${HEADER_HEIGHT_REM + fixedRows * ROW_HEIGHT_REM}rem + 2px)`;
 
   return (
     <div className="flex w-full flex-col gap-4">
-      {showToolbar && (
-        <DataTableToolbar table={table} searchPlaceholder={searchPlaceholder} />
-      )}
+      <section className="flex flex-col gap-4 lg:flex-row justify-between">
+        {showToolbar && (
+          <DataTableToolbar
+            table={table}
+            searchPlaceholder={searchPlaceholder}
+          />
+        )}
+        {showPagination && <DataTablePagination table={table} />}
+      </section>
 
       <div
         style={{ minHeight: tableMinHeight }}
@@ -235,8 +238,6 @@ function DataTable({
           </TableBody>
         </Table>
       </div>
-
-      {showPagination && <DataTablePagination table={table} />}
     </div>
   );
 }

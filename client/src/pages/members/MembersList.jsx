@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus } from "lucide-react";
 
 import AppAlertDialog from "@/components/additonal/AlertDialog";
 import DataTable from "@/components/additonal/Datatable/DataTable";
-import { Button } from "@/components/ui/button";
 import { useMemberStore } from "@/store/member";
 
 import EditMemberDialog from "./EditMemberDialog";
@@ -19,7 +17,7 @@ const getRowId = (row) => String(row.id);
  * change goes through a store action (API call -> store update -> re-render):
  *
  *   list    fetchMembers      (runs when the page or applied search changes)
- *   add     createMember      -> row added to the table
+ *   add     createMember      -> row added to the table (dialog is in index.jsx)
  *   edit    fetchMemberById, updateMember -> row replaced
  *   status  toggleStatus      -> row replaced
  *   delete  deleteMember      -> row removed
@@ -47,14 +45,11 @@ function MembersList() {
   const fetchMembers = useMemberStore((state) => state.fetchMembers);
   const selectMember = useMemberStore((state) => state.selectMember);
   const fetchMemberById = useMemberStore((state) => state.fetchMemberById);
-  const createMember = useMemberStore((state) => state.createMember);
   const updateMember = useMemberStore((state) => state.updateMember);
   const toggleStatus = useMemberStore((state) => state.toggleStatus);
   const deleteMember = useMemberStore((state) => state.deleteMember);
 
   // ---- Dialog UI state (which dialog is open) ------------------------
-  const [createOpen, setCreateOpen] = useState(false);
-
   // The edited member itself lives in the store (`selectedMember`); it stays
   // after the dialog closes so its content does not flicker.
   const [editOpen, setEditOpen] = useState(false);
@@ -107,13 +102,6 @@ function MembersList() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus />
-          Add member
-        </Button>
-      </div>
-
       {error && (
         <p className="text-sm text-destructive" role="alert">
           {error}
@@ -133,16 +121,6 @@ function MembersList() {
         isLoading={isLoading}
         isFetching={isFetching}
         searchPlaceholder="Search by name, email, phone or trainer..."
-      />
-
-      {/* Add. The dialog closes only when createMember resolves. */}
-      <EditMemberDialog
-        mode="create"
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        member={null}
-        isLoading={isSaving}
-        onSubmit={(values) => createMember(values)}
       />
 
       {/* Edit. The dialog closes only when updateMember resolves. */}

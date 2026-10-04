@@ -1,4 +1,40 @@
-﻿export async function seed(knex) {
+// Placeholder avatars (initials), same style as the users seed.
+const avatarUrl = (name) =>
+  `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(name)}`;
+
+// 20 sample members spread over both branches with a mix of states:
+//   branch:  MAIN (11) / ANNA-NAGAR (9)
+//   status:  active (15) / inactive (5)
+//   trainer: assigned / unassigned (only Anna Nagar has a trainer seeded)
+//   email, date of birth and avatar: present for some, missing for others
+//   joined:  spread from mid-2025 to this month
+//
+// Columns: [first, last, branch, phone, email, joined_on, dob, trainer, active, avatar]
+const SAMPLE_MEMBERS = [
+  ["Arun", "Kumar", "MAIN", "9876543210", "arun.kumar@example.com", "2025-06-12", "1992-03-14", false, true, true],
+  ["Priya", "Sharma", "MAIN", "9876543211", "priya.sharma@example.com", "2025-07-03", "1995-11-02", false, true, true],
+  ["Rahul", "Menon", "MAIN", "9876543212", null, "2025-07-21", "1989-08-27", false, true, false],
+  ["Divya", "Nair", "MAIN", "9876543213", "divya.nair@example.com", "2025-08-09", null, false, false, true],
+  ["Karthik", "Raja", "MAIN", "9876543214", "karthik.raja@example.com", "2025-09-15", "1998-01-19", false, true, false],
+  ["Meena", "Iyer", "MAIN", "9876543215", null, "2025-10-30", "1987-05-06", false, true, true],
+  ["Suresh", "Babu", "MAIN", "9876543216", "suresh.babu@example.com", "2025-12-04", "1983-12-22", false, false, false],
+  ["Lakshmi", "Narayanan", "MAIN", "9876543217", "lakshmi.n@example.com", "2026-01-18", "1991-09-09", false, true, true],
+  ["Vignesh", "Pillai", "MAIN", "9876543218", null, "2026-03-02", null, false, true, false],
+  ["Anitha", "Selvam", "MAIN", "9876543219", "anitha.selvam@example.com", "2026-06-25", "1996-04-30", false, false, true],
+  ["Mohan", "Das", "MAIN", "9876543220", "mohan.das@example.com", "2026-09-28", "2000-07-15", false, true, false],
+
+  ["Sneha", "Reddy", "ANNA-NAGAR", "9876543221", "sneha.reddy@example.com", "2025-06-30", "1994-02-11", true, true, true],
+  ["Vikram", "Patel", "ANNA-NAGAR", "9876543222", "vikram.patel@example.com", "2025-08-22", "1990-10-05", true, true, false],
+  ["Deepa", "Krishnan", "ANNA-NAGAR", "9876543223", null, "2025-09-27", "1985-06-18", false, false, true],
+  ["Arjun", "Venkat", "ANNA-NAGAR", "9876543224", "arjun.venkat@example.com", "2025-11-11", null, true, true, false],
+  ["Nisha", "Joseph", "ANNA-NAGAR", "9876543225", "nisha.joseph@example.com", "2026-02-14", "1997-12-01", true, true, true],
+  ["Ganesh", "Murthy", "ANNA-NAGAR", "9876543226", null, "2026-04-08", "1982-03-25", false, false, false],
+  ["Harini", "Subramanian", "ANNA-NAGAR", "9876543227", "harini.s@example.com", "2026-07-19", "1999-08-13", true, true, true],
+  ["Imran", "Khan", "ANNA-NAGAR", "9876543228", "imran.khan@example.com", "2026-08-30", "1993-11-28", false, false, false],
+  ["Janani", "Rao", "ANNA-NAGAR", "9876543229", "janani.rao@example.com", "2026-10-02", "2001-05-21", true, true, true],
+];
+
+export async function seed(knex) {
   // Avoid duplicate seed records.
   await knex("members").del();
 
@@ -6,64 +42,41 @@
   const branches = await knex("branches").select("id", "code");
   const branchId = Object.fromEntries(branches.map((b) => [b.code, b.id]));
 
-  const trainer = await knex("users").where({ role: "trainer" }).first("id");
-  const trainerId = trainer ? trainer.id : null;
+  // Trainers belong to a branch, and a member's trainer must be in the same one.
+  const trainers = await knex("users")
+    .where({ role: "trainer" })
+    .select("id", "branch_id");
+  const trainerByBranch = Object.fromEntries(
+    trainers.map((t) => [t.branch_id, t.id]),
+  );
 
-  await knex("members").insert([
-    {
-      member_Id: 1,
-      branch_id: branchId["MAIN"],
-      first_name: "Arun",
-      last_name: "Kumar",
-      phone: "9876543210",
-      joined_on: "2026-01-10",
-      assigned_trainer_id: trainerId,
-      avatar_url: "https://example.com/images/members/arun-kumar.jpg",
+  // Who "created" the seeded rows (members.created_by / updated_by are NOT NULL).
+  const owner = await knex("users").where({ role: "owner" }).first("id");
+  const seededBy = owner ? owner.id : 1;
+
+  const rows = SAMPLE_MEMBERS.map(
+    (
+      [first, last, branch, phone, email, joinedOn, dob, withTrainer, active, withAvatar],
+      index,
+    ) => ({
+      member_Id: index + 1,
+      branch_id: branchId[branch],
+      first_name: first,
+      last_name: last,
+      phone,
+      email,
+      joined_on: joinedOn,
+      dob,
+      assigned_trainer_id: withTrainer
+        ? (trainerByBranch[branchId[branch]] ?? null)
+        : null,
+      is_active: active,
+      avatar_url: withAvatar ? avatarUrl(`${first} ${last}`) : null,
+      created_by: seededBy,
+      updated_by: seededBy,
       deleted_at: null,
-    },
-    {
-      member_Id: 2,
-      branch_id: branchId["MAIN"],
-      first_name: "Priya",
-      last_name: "Sharma",
-      phone: "9876543211",
-      joined_on: "2026-02-15",
-      assigned_trainer_id: trainerId,
-      avatar_url: "https://example.com/images/members/priya-sharma.jpg",
-      deleted_at: null,
-    },
-    {
-      member_Id: 3,
-      branch_id: branchId["MAIN"],
-      first_name: "Rahul",
-      last_name: "Menon",
-      phone: "9876543212",
-      joined_on: "2026-03-05",
-      assigned_trainer_id: null,
-      avatar_url: null,
-      deleted_at: null,
-    },
-    {
-      member_Id: 4,
-      branch_id: branchId["ANNA-NAGAR"],
-      first_name: "Sneha",
-      last_name: "Reddy",
-      phone: "9876543213",
-      joined_on: "2026-03-20",
-      assigned_trainer_id: trainerId,
-      avatar_url: "https://example.com/images/members/sneha-reddy.jpg",
-      deleted_at: null,
-    },
-    {
-      member_Id: 5,
-      branch_id: branchId["ANNA-NAGAR"],
-      first_name: "Vikram",
-      last_name: "Patel",
-      phone: "9876543214",
-      joined_on: "2026-04-01",
-      assigned_trainer_id: null,
-      avatar_url: null,
-      deleted_at: null,
-    },
-  ]);
+    }),
+  );
+
+  await knex("members").insert(rows);
 }

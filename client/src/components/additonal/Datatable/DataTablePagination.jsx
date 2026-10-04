@@ -12,8 +12,8 @@ function DataTablePagination({ table }) {
   const pageCount = table.getPageCount();
 
   return (
-    <div className="flex items-center justify-between px-2">
-      <div className="flex-1 text-sm text-muted-foreground">
+    <div className="flex items-center justify-between px-2  gap-3">
+      <div className="text-sm text-muted-foreground">
         {table.getRowCount()} row(s)
       </div>
 

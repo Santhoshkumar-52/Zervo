@@ -7,7 +7,7 @@ function DataTableToolbar({ table, searchPlaceholder = "Search..." }) {
   const isFiltered = globalFilter.length > 0;
 
   return (
-    <div className="flex items-center justify-between gap-2">
+    <div className="flex items-center flex-1 justify-between gap-2">
       <div className="flex flex-1 items-center gap-2">
         <Input
           placeholder={searchPlaceholder}
