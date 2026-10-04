@@ -20,9 +20,29 @@ export async function up(knex) {
 
     table.integer("assigned_trainer_id").unsigned().nullable().index();
 
-    table.string("photo_url", 500).nullable();
+    // Avatar URL
+    table.string("avatar_url", 500).nullable();
+
+    table.dateTime("dob").nullable();
+
+    // Automatically set when record is created
+    table
+      .timestamp("created_at")
+      .notNullable()
+      .defaultTo(knex.raw("CURRENT_TIMESTAMP"));
+
+    table.integer("created_by").unsigned().notNullable().defaultTo(1);
+
+    // Automatically updated whenever the row changes
+    table
+      .timestamp("updated_at")
+      .notNullable()
+      .defaultTo(knex.raw("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"));
+
+    table.integer("updated_by").unsigned().notNullable();
 
     table.dateTime("deleted_at").nullable().index();
+    table.integer("deleted_by").nullable().unsigned();
 
     // Branch relationship
     table

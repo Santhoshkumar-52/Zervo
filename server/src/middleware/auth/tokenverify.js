@@ -1,4 +1,4 @@
-const jwt = require("jsonwebtoken");
+﻿const jwt = require("jsonwebtoken");
 
 const db = require("../../config/knexfile"); // adjust path
 const { errorResponse } = require("../../utils/response");
@@ -57,6 +57,7 @@ const tokenVerify = async (req, res, next) => {
         "t.access_token": token,
         "t.is_revoked": false,
         "u.is_active": true,
+        "u.deleted_at": null,
         "b.is_active": true,
       })
       .where("t.access_token_expires_at", ">", new Date())

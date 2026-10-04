@@ -6,6 +6,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 
+import AppAlertDialog from "@/components/additonal/AlertDialog";
 import DataTable from "@/components/additonal/Datatable/DataTable";
 import { deleteStaff, getStaff, updateStaffStatus } from "@/api/staff/staffApi";
 import { useStaffStore } from "@/store/staff";
@@ -31,12 +32,18 @@ function StaffList() {
 
   // The fetched list lives in the store too.
   const staff = useStaffStore((state) => state.staff);
+  
   const total = useStaffStore((state) => state.total);
   const setStaff = useStaffStore((state) => state.setStaff);
   const updateStaffInList = useStaffStore((state) => state.updateStaffInList);
   const removeStaffFromList = useStaffStore(
     (state) => state.removeStaffFromList,
   );
+
+  // Delete confirmation dialog. `staffToDelete` is kept while the dialog
+  // animates closed so its text does not flicker.
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [staffToDelete, setStaffToDelete] = useState(null);
 
   // `search` is what the input shows; `debouncedSearch` is what hits the API.
   const [debouncedSearch, setDebouncedSearch] = useState(search.trim());
@@ -111,7 +118,8 @@ function StaffList() {
     isPending: isStatusPending,
     variables: statusVars,
   } = statusMutation;
-  const { mutate: removeStaff } = deleteMutation;
+  // mutateAsync: the dialog waits for it and stays open if the delete fails.
+  const { mutateAsync: removeStaff } = deleteMutation;
 
   const columns = useMemo(
     () =>
@@ -120,17 +128,14 @@ function StaffList() {
         onEdit: (staff) =>
           notifyInfo(`Editing ${staff.full_name} is coming soon`),
         onDelete: (staff) => {
-          if (
-            window.confirm(`Delete ${staff.full_name}? This cannot be undone.`)
-          ) {
-            removeStaff(staff);
-          }
+          setStaffToDelete(staff);
+          setDeleteOpen(true);
         },
         onToggleStatus: (staff, isActive) => changeStatus({ staff, isActive }),
         isStatusUpdating: (staff) =>
           isStatusPending && statusVars?.staff.id === staff.id,
       }),
-    [changeStatus, removeStaff, isStatusPending, statusVars],
+    [changeStatus, isStatusPending, statusVars],
   );
 
   return (
@@ -154,6 +159,17 @@ function StaffList() {
         isLoading={isLoading}
         isFetching={isFetching}
         searchPlaceholder="Search by name, email or staff ID..."
+      />
+
+      <AppAlertDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title={`Delete ${staffToDelete?.full_name ?? "staff member"}?`}
+        description="This permanently removes the staff member and cannot be undone."
+        confirmText="Delete"
+        variant="destructive"
+        isLoading={deleteMutation.isPending}
+        onConfirm={() => removeStaff(staffToDelete)}
       />
     </div>
   );

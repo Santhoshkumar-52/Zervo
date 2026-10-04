@@ -1,4 +1,4 @@
-const db = require("../../config/knexfile");
+﻿const db = require("../../config/knexfile");
 const { hashPassword } = require("../../utils/hashhelper");
 const { successResponse, errorResponse } = require("../../utils/response");
 const {
@@ -19,7 +19,9 @@ const STAFF_COLUMNS = [
   "users.avatar_url",
   "users.is_active",
   "users.created_at",
+  "users.created_by",
   "users.updated_at",
+  "users.updated_by",
   "branches.name as branch_name",
 ];
 
@@ -28,11 +30,12 @@ const parseId = (value) => {
   return Number.isInteger(id) && id > 0 ? id : null;
 };
 
-// Staff scoped to the logged-in user's branch.
+// Staff scoped to the logged-in user's branch. Soft-deleted rows are hidden.
 const staffQuery = (branchId) =>
   db("users")
     .join("branches", "users.branch_id", "branches.id")
-    .where("users.branch_id", branchId);
+    .where("users.branch_id", branchId)
+    .whereNull("users.deleted_at");
 
 const findStaff = (id, branchId) =>
   staffQuery(branchId).where("users.id", id).select(STAFF_COLUMNS).first();
@@ -176,6 +179,7 @@ const createStaff = async (req, res) => {
       role: data.role,
       is_active: data.is_active,
       avatar_url: data.avatar_url ?? null,
+      created_by: req.user.userId, // the logged-in user who created this staff
     });
 
     const staff = await findStaff(insertedId, req.user.branchId);
@@ -233,7 +237,8 @@ const updateStaff = async (req, res) => {
 
     await db("users")
       .where({ id, branch_id: branchId })
-      .update({ ...changes, updated_at: db.fn.now() });
+      // updated_at is set by the DB (ON UPDATE CURRENT_TIMESTAMP).
+      .update({ ...changes, updated_by: userId });
 
     const staff = await findStaff(id, branchId);
 
@@ -248,7 +253,7 @@ const updateStaff = async (req, res) => {
   }
 };
 
-// DELETE /api/staff/:id  (matched on id AND the logged-in user's branch_id)
+// DELETE /api/staff/:id  (soft delete, matched on id AND the logged-in user's branch_id)
 const deleteStaff = async (req, res) => {
   try {
     const id = parseId(req.params.id);
@@ -265,8 +270,19 @@ const deleteStaff = async (req, res) => {
 
     if (!existing) return errorResponse(res, "Staff not found", 404);
 
-    // user_tokens cascade; members.assigned_trainer_id becomes NULL.
-    await db("users").where({ id, branch_id: branchId }).del();
+    // Soft delete: keep the row, record who/when, and kill their sessions.
+    await db.transaction(async (trx) => {
+      await trx("users")
+        .where({ id, branch_id: branchId })
+        .whereNull("deleted_at")
+        .update({
+          deleted_at: db.fn.now(),
+          deleted_by: userId,
+          is_active: false,
+        });
+
+      await trx("user_tokens").where({ user_id: id }).update({ is_revoked: true });
+    });
 
     return successResponse(res, { id }, "Staff deleted successfully");
   } catch (error) {

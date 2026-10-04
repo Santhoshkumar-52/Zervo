@@ -1,4 +1,4 @@
-const jwt = require("jsonwebtoken");
+﻿const jwt = require("jsonwebtoken");
 
 const db = require("../../config/knexfile");
 
@@ -24,6 +24,7 @@ const login = async (req, res) => {
       .where({
         email: email.toLowerCase().trim(),
         is_active: true,
+        deleted_at: null,
       })
       .first();
 
@@ -243,6 +244,7 @@ const refreshToken = async (req, res) => {
       .where({
         id: decodedToken.userId,
         is_active: true,
+        deleted_at: null,
       })
       .first();
 

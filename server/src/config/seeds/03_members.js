@@ -18,7 +18,7 @@
       phone: "9876543210",
       joined_on: "2026-01-10",
       assigned_trainer_id: trainerId,
-      photo_url: "https://example.com/images/members/arun-kumar.jpg",
+      avatar_url: "https://example.com/images/members/arun-kumar.jpg",
       deleted_at: null,
     },
     {
@@ -29,7 +29,7 @@
       phone: "9876543211",
       joined_on: "2026-02-15",
       assigned_trainer_id: trainerId,
-      photo_url: "https://example.com/images/members/priya-sharma.jpg",
+      avatar_url: "https://example.com/images/members/priya-sharma.jpg",
       deleted_at: null,
     },
     {
@@ -40,7 +40,7 @@
       phone: "9876543212",
       joined_on: "2026-03-05",
       assigned_trainer_id: null,
-      photo_url: null,
+      avatar_url: null,
       deleted_at: null,
     },
     {
@@ -51,7 +51,7 @@
       phone: "9876543213",
       joined_on: "2026-03-20",
       assigned_trainer_id: trainerId,
-      photo_url: "https://example.com/images/members/sneha-reddy.jpg",
+      avatar_url: "https://example.com/images/members/sneha-reddy.jpg",
       deleted_at: null,
     },
     {
@@ -62,7 +62,7 @@
       phone: "9876543214",
       joined_on: "2026-04-01",
       assigned_trainer_id: null,
-      photo_url: null,
+      avatar_url: null,
       deleted_at: null,
     },
   ]);
