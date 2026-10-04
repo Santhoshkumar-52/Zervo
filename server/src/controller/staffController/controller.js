@@ -1,10 +1,11 @@
-﻿const db = require("../../config/knexfile");
+const db = require("../../config/knexfile");
 const { hashPassword } = require("../../utils/hashhelper");
 const { successResponse, errorResponse } = require("../../utils/response");
 const {
   ROLES,
   createStaffSchema,
   updateStaffSchema,
+  updateStaffStatusSchema,
   formatZodError,
 } = require("./schema");
 
@@ -134,7 +135,7 @@ const getStaffList = async (req, res) => {
   }
 };
 
-// GET /api/staff/:id
+// GET /api/staff/:id   (used to load the edit form)
 const getStaffById = async (req, res) => {
   try {
     const id = parseId(req.params.id);
@@ -180,6 +181,7 @@ const createStaff = async (req, res) => {
       is_active: data.is_active,
       avatar_url: data.avatar_url ?? null,
       created_by: req.user.userId, // the logged-in user who created this staff
+      updated_by: req.user.userId,
     });
 
     const staff = await findStaff(insertedId, req.user.branchId);
@@ -195,7 +197,7 @@ const createStaff = async (req, res) => {
   }
 };
 
-// PUT /api/staff/:id  (matched on id AND the logged-in user's branch_id)
+// PATCH|PUT /api/staff/:id  (matched on id AND the logged-in user's branch_id)
 const updateStaff = async (req, res) => {
   try {
     const id = parseId(req.params.id);
@@ -237,6 +239,7 @@ const updateStaff = async (req, res) => {
 
     await db("users")
       .where({ id, branch_id: branchId })
+      .whereNull("deleted_at")
       // updated_at is set by the DB (ON UPDATE CURRENT_TIMESTAMP).
       .update({ ...changes, updated_by: userId });
 
@@ -248,6 +251,60 @@ const updateStaff = async (req, res) => {
     if (duplicate) return duplicate;
 
     console.error("Error updating staff:", error);
+
+    return errorResponse(res, "Internal server error", 500);
+  }
+};
+
+// PATCH /api/staff/:id/status   body: { is_active: boolean }
+const updateStaffStatus = async (req, res) => {
+  try {
+    const id = parseId(req.params.id);
+
+    if (!id) return errorResponse(res, "Invalid staff id", 400);
+
+    const parsed = updateStaffStatusSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+      return errorResponse(
+        res,
+        "Validation failed",
+        400,
+        formatZodError(parsed.error),
+      );
+    }
+
+    const { branchId, userId } = req.user;
+    const { is_active: isActive } = parsed.data;
+
+    // Don't let someone lock themselves out.
+    if (id === userId && isActive === false) {
+      return errorResponse(res, "You cannot deactivate your own account", 400);
+    }
+
+    const existing = await findStaff(id, branchId);
+
+    if (!existing) return errorResponse(res, "Staff not found", 404);
+
+    await db("users")
+      .where({ id, branch_id: branchId })
+      .whereNull("deleted_at")
+      .update({ is_active: isActive, updated_by: userId });
+
+    // A deactivated account should not keep working sessions.
+    if (!isActive) {
+      await db("user_tokens").where({ user_id: id }).update({ is_revoked: true });
+    }
+
+    const staff = await findStaff(id, branchId);
+
+    return successResponse(
+      res,
+      { staff },
+      `Staff marked as ${isActive ? "active" : "inactive"}`,
+    );
+  } catch (error) {
+    console.error("Error updating staff status:", error);
 
     return errorResponse(res, "Internal server error", 500);
   }
@@ -279,6 +336,7 @@ const deleteStaff = async (req, res) => {
           deleted_at: db.fn.now(),
           deleted_by: userId,
           is_active: false,
+          updated_by: userId,
         });
 
       await trx("user_tokens").where({ user_id: id }).update({ is_revoked: true });
@@ -297,5 +355,6 @@ module.exports = {
   getStaffById,
   createStaff,
   updateStaff,
+  updateStaffStatus,
   deleteStaff,
 };

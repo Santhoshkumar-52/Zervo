@@ -34,6 +34,11 @@ const updateStaffSchema = z
     message: "At least one field is required",
   });
 
+// PATCH /api/staff/:id/status body: { is_active }
+const updateStaffStatusSchema = z.object({
+  is_active: z.boolean({ message: "is_active must be true or false" }),
+});
+
 const formatZodError = (error) =>
   error.issues.map((issue) => ({
     field: issue.path.join(".") || "body",
@@ -44,5 +49,6 @@ module.exports = {
   ROLES,
   createStaffSchema,
   updateStaffSchema,
+  updateStaffStatusSchema,
   formatZodError,
 };

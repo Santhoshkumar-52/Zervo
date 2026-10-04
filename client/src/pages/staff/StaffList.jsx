@@ -1,44 +1,50 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  keepPreviousData,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
 
 import AppAlertDialog from "@/components/additonal/AlertDialog";
 import DataTable from "@/components/additonal/Datatable/DataTable";
-import { deleteStaff, getStaff, updateStaffStatus } from "@/api/staff/staffApi";
 import { useStaffStore } from "@/store/staff";
-import { notifyError, notifyInfo, notifySuccess } from "@/utils/notification";
+import { notifyInfo } from "@/utils/notification";
 
 import { getStaffColumns } from "./StaffColumns";
 
 const SEARCH_DEBOUNCE_MS = 400;
 
+// Rows are keyed by the internal `id`, the same id every staff endpoint uses.
 const getRowId = (row) => String(row.id);
 
-const getApiError = (error, fallback) =>
-  error?.response?.data?.message || error?.message || fallback;
-
+/**
+ * Staff screen. Everything it shows comes from the staff store, and every
+ * change goes through a store action (API call -> store update -> re-render):
+ *
+ *   list    fetchStaff    (runs when the page or applied search changes)
+ *   status  toggleStatus  -> row replaced
+ *   delete  deleteStaff   -> row removed
+ *
+ * The store also has createStaff, fetchStaffById and updateStaff, ready for
+ * the add / edit dialogs.
+ */
 function StaffList() {
-  const queryClient = useQueryClient();
-
-  // Table state (search text + pagination) lives in the staff store.
-  const search = useStaffStore((state) => state.search);
-  const setSearch = useStaffStore((state) => state.setSearch);
-  const pagination = useStaffStore((state) => state.pagination);
-  const setPagination = useStaffStore((state) => state.setPagination);
-
-  // The fetched list lives in the store too.
+  // ---- Rendered from the store ---------------------------------------
   const staff = useStaffStore((state) => state.staff);
   const total = useStaffStore((state) => state.total);
-  const setStaff = useStaffStore((state) => state.setStaff);
-  const updateStaffInList = useStaffStore((state) => state.updateStaffInList);
-  const removeStaffFromList = useStaffStore(
-    (state) => state.removeStaffFromList,
-  );
+  const search = useStaffStore((state) => state.search);
+  const pagination = useStaffStore((state) => state.pagination);
+  const appliedSearch = useStaffStore((state) => state.appliedSearch);
+  const isLoading = useStaffStore((state) => state.isLoading);
+  const isFetching = useStaffStore((state) => state.isFetching);
+  const error = useStaffStore((state) => state.error);
+  const isDeleting = useStaffStore((state) => state.isDeleting);
+  const statusUpdatingIds = useStaffStore((state) => state.statusUpdatingIds);
 
+  // ---- Store actions -------------------------------------------------
+  const setSearch = useStaffStore((state) => state.setSearch);
+  const applySearch = useStaffStore((state) => state.applySearch);
+  const setPagination = useStaffStore((state) => state.setPagination);
+  const fetchStaff = useStaffStore((state) => state.fetchStaff);
+  const toggleStatus = useStaffStore((state) => state.toggleStatus);
+  const deleteStaff = useStaffStore((state) => state.deleteStaff);
+
+  // ---- Dialog UI state (which dialog is open) ------------------------
   // Kept while the dialog animates closed so its text does not flicker.
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [staffToDelete, setStaffToDelete] = useState(null);
@@ -47,108 +53,46 @@ function StaffList() {
   const [statusOpen, setStatusOpen] = useState(false);
   const [statusChange, setStatusChange] = useState(null);
 
-  // `search` is what the input shows; `debouncedSearch` is what hits the API.
-  const [debouncedSearch, setDebouncedSearch] = useState(search.trim());
-
+  // Apply the typed search to the list once the user stops typing.
   useEffect(() => {
     const timer = setTimeout(
-      () => setDebouncedSearch(search.trim()),
+      () => applySearch(search.trim()),
       SEARCH_DEBOUNCE_MS,
     );
 
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [search, applySearch]);
 
-  const page = pagination.pageIndex + 1;
-  const limit = pagination.pageSize;
-
-  const { data, isLoading, isFetching, isError, error } = useQuery({
-    queryKey: ["staff", { page, limit, search: debouncedSearch }],
-    queryFn: async () => {
-      const response = await getStaff({
-        page,
-        limit,
-        search: debouncedSearch,
-      });
-
-      // Server shape: { success, message, data: { staff, pagination } }
-      return response.data.data;
-    },
-    // Keep showing the previous page's rows while the next page loads.
-    placeholderData: keepPreviousData,
-  });
-
-  // Copy each fetched page into the store (the table renders from the store).
+  // Load the list whenever the page or the applied search changes.
   useEffect(() => {
-    if (data) setStaff({ staff: data.staff, total: data.pagination.total });
-  }, [data, setStaff]);
-
-  const errorMessage = getApiError(error, "Failed to load staff");
-
-  useEffect(() => {
-    if (isError) notifyError(errorMessage);
-  }, [isError, errorMessage]);
-
-  const invalidateStaff = () =>
-    queryClient.invalidateQueries({ queryKey: ["staff"] });
-
-  const statusMutation = useMutation({
-    mutationFn: ({ staff, isActive }) => updateStaffStatus(staff.id, isActive),
-    onSuccess: (_, { staff, isActive }) => {
-      notifySuccess(
-        `${staff.full_name} marked as ${isActive ? "active" : "inactive"}`,
-      );
-      updateStaffInList(staff.id, { is_active: isActive });
-      invalidateStaff();
-    },
-    onError: (err) =>
-      notifyError(getApiError(err, "Failed to update staff status")),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (staff) => deleteStaff(staff.id),
-    onSuccess: (_, staff) => {
-      notifySuccess(`${staff.full_name} deleted`);
-      removeStaffFromList(staff.id);
-      invalidateStaff();
-    },
-    onError: (err) => notifyError(getApiError(err, "Failed to delete staff")),
-  });
-
-  // mutateAsync: the dialogs wait for it and stay open if the request fails.
-  const {
-    mutateAsync: changeStatus,
-    isPending: isStatusPending,
-    variables: statusVars,
-  } = statusMutation;
-  const { mutateAsync: removeStaff } = deleteMutation;
+    fetchStaff();
+  }, [fetchStaff, appliedSearch, pagination.pageIndex, pagination.pageSize]);
 
   const columns = useMemo(
     () =>
       getStaffColumns({
-        // TODO: navigate to the edit screen once that route exists.
-        onEdit: (staff) =>
-          notifyInfo(`Editing ${staff.full_name} is coming soon`),
-        onDelete: (staff) => {
-          setStaffToDelete(staff);
+        // TODO: open an edit dialog (selectStaff -> fetchStaffById -> updateStaff).
+        onEdit: (member) =>
+          notifyInfo(`Editing ${member.full_name} is coming soon`),
+        onDelete: (member) => {
+          setStaffToDelete(member);
           setDeleteOpen(true);
         },
         // Ask for confirmation first; the switch only changes after confirming.
-        onToggleStatus: (staff, isActive) => {
-          setStatusChange({ staff, isActive });
+        onToggleStatus: (member, isActive) => {
+          setStatusChange({ staff: member, isActive });
           setStatusOpen(true);
         },
-        isStatusUpdating: (staff) =>
-          isStatusPending && statusVars?.staff.id === staff.id,
+        isStatusUpdating: (member) => statusUpdatingIds.includes(member.id),
       }),
-    [isStatusPending, statusVars],
+    [statusUpdatingIds],
   );
 
   return (
     <div className="space-y-4">
-      {isError && (
+      {error && (
         <p className="text-sm text-destructive" role="alert">
-          {errorMessage}
+          {error}
         </p>
       )}
 
@@ -183,10 +127,10 @@ function StaffList() {
         variant={statusChange?.isActive ? "default" : "destructive"}
         isLoading={
           statusChange
-            ? isStatusPending && statusVars?.staff.id === statusChange.staff.id
+            ? statusUpdatingIds.includes(statusChange.staff.id)
             : false
         }
-        onConfirm={() => changeStatus(statusChange)}
+        onConfirm={() => toggleStatus(statusChange.staff, statusChange.isActive)}
       />
 
       <AppAlertDialog
@@ -196,8 +140,8 @@ function StaffList() {
         description="This removes the staff member from the list. This action cannot be undone from the app."
         confirmText="Delete"
         variant="destructive"
-        isLoading={deleteMutation.isPending}
-        onConfirm={() => removeStaff(staffToDelete)}
+        isLoading={isDeleting}
+        onConfirm={() => deleteStaff(staffToDelete)}
       />
     </div>
   );
