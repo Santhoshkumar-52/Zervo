@@ -3,8 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import AppAlertDialog from "@/components/additonal/AlertDialog";
 import DataTable from "@/components/additonal/Datatable/DataTable";
 import { useStaffStore } from "@/store/staff";
-import { notifyInfo } from "@/utils/notification";
 
+import EditStaffDialog from "./EditStaffDialog";
 import { getStaffColumns } from "./StaffColumns";
 
 const SEARCH_DEBOUNCE_MS = 400;
@@ -17,11 +17,10 @@ const getRowId = (row) => String(row.id);
  * change goes through a store action (API call -> store update -> re-render):
  *
  *   list    fetchStaff    (runs when the page or applied search changes)
+ *   add     createStaff   -> row added to the table (dialog is in index.jsx)
+ *   edit    fetchStaffById, updateStaff -> row replaced
  *   status  toggleStatus  -> row replaced
  *   delete  deleteStaff   -> row removed
- *
- * The store also has createStaff, fetchStaffById and updateStaff, ready for
- * the add / edit dialogs.
  */
 function StaffList() {
   // ---- Rendered from the store ---------------------------------------
@@ -33,6 +32,9 @@ function StaffList() {
   const isLoading = useStaffStore((state) => state.isLoading);
   const isFetching = useStaffStore((state) => state.isFetching);
   const error = useStaffStore((state) => state.error);
+  const selectedStaff = useStaffStore((state) => state.selectedStaff);
+  const isSelectedLoading = useStaffStore((state) => state.isSelectedLoading);
+  const isSaving = useStaffStore((state) => state.isSaving);
   const isDeleting = useStaffStore((state) => state.isDeleting);
   const statusUpdatingIds = useStaffStore((state) => state.statusUpdatingIds);
 
@@ -41,10 +43,17 @@ function StaffList() {
   const applySearch = useStaffStore((state) => state.applySearch);
   const setPagination = useStaffStore((state) => state.setPagination);
   const fetchStaff = useStaffStore((state) => state.fetchStaff);
+  const selectStaff = useStaffStore((state) => state.selectStaff);
+  const fetchStaffById = useStaffStore((state) => state.fetchStaffById);
+  const updateStaff = useStaffStore((state) => state.updateStaff);
   const toggleStatus = useStaffStore((state) => state.toggleStatus);
   const deleteStaff = useStaffStore((state) => state.deleteStaff);
 
   // ---- Dialog UI state (which dialog is open) ------------------------
+  // The edited staff member itself lives in the store (`selectedStaff`); it
+  // stays after the dialog closes so its content does not flicker.
+  const [editOpen, setEditOpen] = useState(false);
+
   // Kept while the dialog animates closed so its text does not flicker.
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [staffToDelete, setStaffToDelete] = useState(null);
@@ -71,9 +80,12 @@ function StaffList() {
   const columns = useMemo(
     () =>
       getStaffColumns({
-        // TODO: open an edit dialog (selectStaff -> fetchStaffById -> updateStaff).
-        onEdit: (member) =>
-          notifyInfo(`Editing ${member.full_name} is coming soon`),
+        onEdit: (member) => {
+          // Show the row's data straight away, then refresh it by id.
+          selectStaff(member);
+          setEditOpen(true);
+          fetchStaffById(member.id).catch(() => setEditOpen(false));
+        },
         onDelete: (member) => {
           setStaffToDelete(member);
           setDeleteOpen(true);
@@ -85,7 +97,7 @@ function StaffList() {
         },
         isStatusUpdating: (member) => statusUpdatingIds.includes(member.id),
       }),
-    [statusUpdatingIds],
+    [selectStaff, fetchStaffById, statusUpdatingIds],
   );
 
   return (
@@ -110,6 +122,16 @@ function StaffList() {
         isLoading={isLoading}
         isFetching={isFetching}
         searchPlaceholder="Search by name, email or staff ID..."
+      />
+
+      {/* Edit. The dialog closes only when updateStaff resolves. */}
+      <EditStaffDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        staff={selectedStaff}
+        isStaffLoading={isSelectedLoading}
+        isLoading={isSaving}
+        onSubmit={(values, member) => updateStaff(member.id, values)}
       />
 
       <AppAlertDialog

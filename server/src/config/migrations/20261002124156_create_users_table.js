@@ -1,9 +1,13 @@
 /**
- * Depends on: branches (must be migrated first).
+ * Flow: branches -> groups -> users -> members
+ *
+ * Depends on: branches, groups (must be migrated first).
  *
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
+
+const GROUP_AUDIT_COLUMNS = ["created_by", "updated_by", "deleted_by"];
 
 exports.up = async function (knex) {
   await knex.schema.createTable("users", (table) => {
@@ -16,16 +20,14 @@ exports.up = async function (knex) {
     // Branch relationship
     table.integer("branch_id").unsigned().nullable().index();
 
+    // Group / role relationship
+    table.integer("group_id").unsigned().notNullable().index();
+
     table.string("full_name", 100).notNullable();
 
     table.string("email", 150).notNullable().unique();
 
     table.string("password", 255).notNullable();
-
-    table
-      .enum("role", ["owner", "manager", "front_desk", "trainer"])
-      .notNullable()
-      .defaultTo("front_desk");
 
     table.boolean("is_active").notNullable().defaultTo(true);
 
@@ -35,7 +37,7 @@ exports.up = async function (knex) {
       .notNullable()
       .defaultTo(knex.raw("CURRENT_TIMESTAMP"));
 
-    table.integer("created_by").unsigned().nullable().defaultTo(1);
+    table.integer("created_by").unsigned().nullable();
 
     // Updated information
     table
@@ -57,6 +59,14 @@ exports.up = async function (knex) {
       .inTable("branches")
       .onUpdate("CASCADE")
       .onDelete("SET NULL");
+
+    // Group relationship
+    table
+      .foreign("group_id")
+      .references("id")
+      .inTable("groups")
+      .onUpdate("CASCADE")
+      .onDelete("RESTRICT");
 
     // Created by relationship
     table
@@ -82,8 +92,27 @@ exports.up = async function (knex) {
       .onUpdate("CASCADE")
       .onDelete("SET NULL");
   });
+
+  // groups is created before users, so its audit foreign keys are added now.
+  await knex.schema.alterTable("groups", (table) => {
+    for (const column of GROUP_AUDIT_COLUMNS) {
+      table
+        .foreign(column)
+        .references("id")
+        .inTable("users")
+        .onUpdate("CASCADE")
+        .onDelete("SET NULL");
+    }
+  });
 };
 
 exports.down = async function (knex) {
+  // groups.created_by / updated_by / deleted_by point at users: drop them first.
+  await knex.schema.alterTable("groups", (table) => {
+    for (const column of GROUP_AUDIT_COLUMNS) {
+      table.dropForeign(column);
+    }
+  });
+
   await knex.schema.dropTableIfExists("users");
 };

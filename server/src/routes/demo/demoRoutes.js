@@ -8,7 +8,7 @@ const getDemoUsers = async (req, res) => {
         "id",
         "full_name",
         "email",
-        "role",
+        "group_id",
         "branch_id",
         "is_active",
         "created_at",

@@ -61,7 +61,7 @@ const tokenVerify = async (req, res, next) => {
         "b.is_active": true,
       })
       .where("t.access_token_expires_at", ">", new Date())
-      .select("u.id", "u.full_name", "u.email", "u.role", "u.branch_id")
+      .select("u.id", "u.full_name", "u.email", "u.group_id", "u.branch_id")
       .first();
 
     // 4. Token doesn't exist / revoked / expired / user inactive
@@ -77,7 +77,7 @@ const tokenVerify = async (req, res, next) => {
     // user information from the JWT payload.
     req.user = {
       userId: session.id,
-      role: session.role,
+      role: session.group_id,
       fullName: session.full_name,
       branchId: session.branch_id,
       email: session.email,

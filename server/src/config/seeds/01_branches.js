@@ -1,5 +1,5 @@
 export async function seed(knex) {
-  // First seed. members reference branches (ON DELETE RESTRICT), so clear them first.
+  // 1/4 of branches -> groups -> users -> members. members reference branches (ON DELETE RESTRICT), so clear them first.
   // users.branch_id is ON DELETE SET NULL; the users seed re-creates users afterwards.
   await knex("members").del();
   await knex("branches").del();

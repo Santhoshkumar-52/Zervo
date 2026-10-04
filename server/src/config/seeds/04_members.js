@@ -5,7 +5,7 @@ const avatarUrl = (name) =>
 // 20 sample members spread over both branches with a mix of states:
 //   branch:  MAIN (11) / ANNA-NAGAR (9)
 //   status:  active (14) / inactive (6)
-//   trainer: assigned / unassigned (only Anna Nagar has a trainer seeded)
+//   trainer: assigned / unassigned (assigned only where a branch trainer exists)
 //   email, date of birth and avatar: present for some, missing for others
 //   joined:  spread from mid-2025 to this month
 //
@@ -43,15 +43,27 @@ export async function seed(knex) {
   const branchId = Object.fromEntries(branches.map((b) => [b.code, b.id]));
 
   // Trainers belong to a branch, and a member's trainer must be in the same one.
+  // Role now lives in groups: users.group_id -> groups.name.
+  // Only active, non-deleted trainers can be assigned (same rule as the API).
   const trainers = await knex("users")
-    .where({ role: "trainer" })
-    .select("id", "branch_id");
-  const trainerByBranch = Object.fromEntries(
-    trainers.map((t) => [t.branch_id, t.id]),
-  );
+    .join("groups", "users.group_id", "groups.id")
+    .where("groups.name", "trainer")
+    .where("users.is_active", true)
+    .whereNull("users.deleted_at")
+    .orderBy("users.id")
+    .select("users.id", "users.branch_id");
+  const trainerByBranch = {};
+  for (const t of trainers) {
+    // keep the first trainer found for each branch
+    trainerByBranch[t.branch_id] ??= t.id;
+  }
 
   // Who "created" the seeded rows (members.created_by / updated_by are NOT NULL).
-  const owner = await knex("users").where({ role: "owner" }).first("id");
+  const owner = await knex("users")
+    .join("groups", "users.group_id", "groups.id")
+    .where("groups.name", "owner")
+    .orderBy("users.id")
+    .first("users.id");
   const seededBy = owner ? owner.id : 1;
 
   const rows = SAMPLE_MEMBERS.map(
