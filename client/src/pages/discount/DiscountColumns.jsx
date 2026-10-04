@@ -2,9 +2,11 @@ import { Badge } from "@/components/ui/badge";
 
 import DiscountActions from "./DiscountActions";
 
+// `type_name` is saved by the server ("percentage" | "fixed").
+// `value` arrives as a decimal string ("10.00"), so convert it first.
 const formatValue = (discount) =>
-  discount.type === "percentage"
-    ? `${discount.value}%`
+  discount.type_name === "percentage"
+    ? `${Number(discount.value)}%`
     : `₹${Number(discount.value).toLocaleString("en-IN")}`;
 
 // Handlers: { onEdit, onDelete, onToggleStatus }
@@ -22,10 +24,10 @@ export const getDiscountColumns = ({
     header: "Name",
   },
   {
-    accessorKey: "type",
+    accessorKey: "type_name",
     header: "Type",
     cell: ({ row }) =>
-      row.original.type === "percentage" ? "Percentage" : "Fixed amount",
+      row.original.type_name === "percentage" ? "Percentage" : "Fixed amount",
   },
   {
     accessorKey: "value",
@@ -33,14 +35,14 @@ export const getDiscountColumns = ({
     cell: ({ row }) => formatValue(row.original),
   },
   {
-    accessorKey: "valid_from",
+    accessorKey: "starts_on",
     header: "Valid from",
-    cell: ({ row }) => row.original.valid_from || "—",
+    cell: ({ row }) => row.original.starts_on || "—",
   },
   {
-    accessorKey: "valid_to",
+    accessorKey: "ends_on",
     header: "Valid to",
-    cell: ({ row }) => row.original.valid_to || "—",
+    cell: ({ row }) => row.original.ends_on || "—",
   },
   {
     accessorKey: "is_active",

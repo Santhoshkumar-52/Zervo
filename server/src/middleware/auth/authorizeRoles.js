@@ -1,20 +1,18 @@
 ﻿const { errorResponse } = require("../../utils/response");
 
 // Use after tokenVerify: only the listed roles may continue.
-const authorizeRoles =
-  (...allowedRoles) =>
-  (req, res, next) => {
-    console.log(req.user);
-    
-    if (!req.user || !allowedRoles.includes(req.user.role)) {
-      return errorResponse(
-        res,
-        "You do not have permission to perform this action. Contact Admin",
-        403,
-      );
-    }
+const authorizeRoles = () => (req, res, next) => {
+  const roles = process.env.Granted_Roles;
 
-    return next();
-  };
+  if (!req.user || !roles.includes(req.user.role)) {
+    return errorResponse(
+      res,
+      "You do not have permission to perform this action. Contact Admin",
+      403,
+    );
+  }
+
+  return next();
+};
 
 module.exports = authorizeRoles;

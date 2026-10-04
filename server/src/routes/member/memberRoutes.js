@@ -14,7 +14,7 @@ const router = express.Router();
 
 // Front desk can edit members; only owners and managers can delete them.
 const canEditMembers = authorizeRoles("owner", "manager", "front_desk");
-const canDeleteMembers = authorizeRoles("owner", "manager");
+const canDeleteMembers = authorizeRoles();
 
 // GET    /api/member             -> paginated list (page, limit, search, memberActive, branchActive)
 // GET    /api/member/:id         -> one member (used to load the edit form)

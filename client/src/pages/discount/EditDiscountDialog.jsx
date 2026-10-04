@@ -24,15 +24,20 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 
+// The select works with text, so the type is "1" / "2" in the form and sent
+// to the server as a number. The server saves the type name itself.
+const PERCENTAGE = "1";
+const FIXED = "2";
+
 const TYPE_ITEMS = [
-  { value: "percentage", label: "Percentage (%)" },
-  { value: "fixed", label: "Fixed amount (₹)" },
+  { value: PERCENTAGE, label: "Percentage (%)" },
+  { value: FIXED, label: "Fixed amount (₹)" },
 ];
 
 const discountSchema = z
   .object({
     name: z.string().trim().min(1, "Discount name is required").max(100),
-    type: z.enum(["percentage", "fixed"]),
+    type: z.enum([PERCENTAGE, FIXED]),
     // Kept as text in the form, converted to a number on submit.
     value: z
       .string()
@@ -40,12 +45,14 @@ const discountSchema = z
       .min(1, "Value is required")
       .refine((value) => !Number.isNaN(Number(value)), "Enter a valid number")
       .refine((value) => Number(value) > 0, "Value must be greater than 0"),
-    valid_from: z.string().min(1, "Start date is required"),
-    valid_to: z.string().min(1, "End date is required"),
+    description: z.string().trim().max(255),
+    // Optional: an empty date is saved as no date.
+    starts_on: z.string(),
+    ends_on: z.string(),
     is_active: z.boolean(),
   })
   .superRefine((data, ctx) => {
-    if (data.type === "percentage" && Number(data.value) > 100) {
+    if (data.type === PERCENTAGE && Number(data.value) > 100) {
       ctx.addIssue({
         code: "custom",
         path: ["value"],
@@ -53,10 +60,10 @@ const discountSchema = z
       });
     }
 
-    if (data.valid_from && data.valid_to && data.valid_to < data.valid_from) {
+    if (data.starts_on && data.ends_on && data.ends_on < data.starts_on) {
       ctx.addIssue({
         code: "custom",
-        path: ["valid_to"],
+        path: ["ends_on"],
         message: "End date must be on or after the start date",
       });
     }
@@ -72,12 +79,14 @@ const today = () => {
 };
 
 // With no discount (create mode) the form starts empty, dated today, and active.
+// The saved type is read from `type_name`, which the server always sets.
 const toFormValues = (discount) => ({
   name: discount?.name ?? "",
-  type: discount?.type ?? "percentage",
-  value: discount?.value !== undefined ? String(discount.value) : "",
-  valid_from: discount?.valid_from ?? today(),
-  valid_to: discount?.valid_to ?? "",
+  type: discount?.type_name === "fixed" ? FIXED : PERCENTAGE,
+  value: discount?.value != null ? String(Number(discount.value)) : "",
+  description: discount?.description ?? "",
+  starts_on: discount ? (discount.starts_on ?? "") : today(),
+  ends_on: discount?.ends_on ?? "",
   is_active: discount ? Boolean(discount.is_active) : true,
 });
 
@@ -92,7 +101,7 @@ const toFormValues = (discount) => ({
  *     onSubmit={(values, discount) => ...}
  *   />
  *
- * `values`: { name, type, value, valid_from, valid_to, is_active }
+ * `values`: { name, type (1 | 2), value, description, starts_on, ends_on, is_active }
  * If `onSubmit` returns a promise the dialog closes when it resolves and
  * stays open when it rejects.
  */
@@ -127,10 +136,11 @@ function EditDiscountDialog({
   const submit = async (values) => {
     const payload = {
       name: values.name,
-      type: values.type,
+      type: Number(values.type),
       value: Number(values.value),
-      valid_from: values.valid_from,
-      valid_to: values.valid_to,
+      description: values.description,
+      starts_on: values.starts_on || null,
+      ends_on: values.ends_on || null,
       is_active: values.is_active,
     };
 
@@ -201,7 +211,7 @@ function EditDiscountDialog({
             </Field>
 
             <Field
-              label={type === "percentage" ? "Value (%)" : "Value (₹)"}
+              label={type === PERCENTAGE ? "Value (%)" : "Value (₹)"}
               htmlFor="edit-discount-value"
               required
               error={errors.value?.message}
@@ -211,7 +221,7 @@ function EditDiscountDialog({
                 type="number"
                 inputMode="decimal"
                 step="0.01"
-                placeholder={type === "percentage" ? "e.g. 10" : "e.g. 500"}
+                placeholder={type === PERCENTAGE ? "e.g. 10" : "e.g. 500"}
                 aria-required="true"
                 aria-invalid={Boolean(errors.value)}
                 {...register("value")}
@@ -220,21 +230,19 @@ function EditDiscountDialog({
 
             <Field
               label="Valid from"
-              htmlFor="edit-discount-valid-from"
-              required
-              error={errors.valid_from?.message}
+              htmlFor="edit-discount-starts-on"
+              error={errors.starts_on?.message}
             >
               <Controller
-                name="valid_from"
+                name="starts_on"
                 control={control}
                 render={({ field }) => (
                   <DatePicker
-                    id="edit-discount-valid-from"
+                    id="edit-discount-starts-on"
                     value={field.value}
                     onChange={field.onChange}
                     placeholder="Select start date"
-                    aria-required="true"
-                    aria-invalid={Boolean(errors.valid_from)}
+                    aria-invalid={Boolean(errors.starts_on)}
                   />
                 )}
               />
@@ -242,26 +250,37 @@ function EditDiscountDialog({
 
             <Field
               label="Valid to"
-              htmlFor="edit-discount-valid-to"
-              required
-              error={errors.valid_to?.message}
+              htmlFor="edit-discount-ends-on"
+              error={errors.ends_on?.message}
             >
               <Controller
-                name="valid_to"
+                name="ends_on"
                 control={control}
                 render={({ field }) => (
                   <DatePicker
-                    id="edit-discount-valid-to"
+                    id="edit-discount-ends-on"
                     value={field.value}
                     onChange={field.onChange}
                     placeholder="Select end date"
-                    aria-required="true"
-                    aria-invalid={Boolean(errors.valid_to)}
+                    aria-invalid={Boolean(errors.ends_on)}
                   />
                 )}
               />
             </Field>
           </div>
+
+          <Field
+            label="Description"
+            htmlFor="edit-discount-description"
+            error={errors.description?.message}
+          >
+            <Input
+              id="edit-discount-description"
+              placeholder="Optional note about this discount"
+              aria-invalid={Boolean(errors.description)}
+              {...register("description")}
+            />
+          </Field>
 
           <Controller
             name="is_active"

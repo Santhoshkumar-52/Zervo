@@ -13,7 +13,7 @@ const authorizeRoles = require("../../middleware/auth/authorizeRoles");
 const router = express.Router();
 
 // Tax rates affect billing, so only owners and managers can change them.
-const canManageTaxes = authorizeRoles(1, 2);
+const canManageTaxes = authorizeRoles();
 
 // GET    /api/tax             -> paginated list (page, limit, search, taxActive)
 // GET    /api/tax/:id         -> one tax (used to load the edit form)

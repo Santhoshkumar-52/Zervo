@@ -13,7 +13,7 @@ const authorizeRoles = require("../../middleware/auth/authorizeRoles");
 const router = express.Router();
 
 // Only owners and managers can change staff.
-const canManageStaff = authorizeRoles("owner", "manager");
+const canManageStaff = authorizeRoles();
 
 // GET    /api/staff             -> paginated list (page, limit, search, role, isActive)
 // GET    /api/staff/:id         -> one staff member (used to load the edit form)
