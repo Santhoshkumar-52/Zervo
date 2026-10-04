@@ -12,11 +12,12 @@ const {
 // Staff = rows in the `users` table. Never select `password`.
 const STAFF_COLUMNS = [
   "users.id",
+  "groups.id as group_id",
   "users.user_id",
   "users.branch_id",
   "users.full_name",
   "users.email",
-  "users.role",
+  "users.group_id",
   "users.avatar_url",
   "users.is_active",
   "users.created_at",
@@ -24,6 +25,7 @@ const STAFF_COLUMNS = [
   "users.updated_at",
   "users.updated_by",
   "branches.name as branch_name",
+  "groups.name as group_name",
 ];
 
 const parseId = (value) => {
@@ -35,6 +37,7 @@ const parseId = (value) => {
 const staffQuery = (branchId) =>
   db("users")
     .join("branches", "users.branch_id", "branches.id")
+    .join("groups", "users.group_id", "groups.id")
     .where("users.branch_id", branchId)
     .whereNull("users.deleted_at");
 
@@ -74,7 +77,11 @@ const getStaffList = async (req, res) => {
     const { role, isActive } = req.query;
 
     if (role !== undefined && !ROLES.includes(role)) {
-      return errorResponse(res, `role must be one of: ${ROLES.join(", ")}`, 400);
+      return errorResponse(
+        res,
+        `role must be one of: ${ROLES.join(", ")}`,
+        400,
+      );
     }
 
     const baseQuery = staffQuery(branchId);
@@ -225,7 +232,11 @@ const updateStaff = async (req, res) => {
     // Don't let someone lock themselves out.
     if (id === userId) {
       if (changes.is_active === false) {
-        return errorResponse(res, "You cannot deactivate your own account", 400);
+        return errorResponse(
+          res,
+          "You cannot deactivate your own account",
+          400,
+        );
       }
 
       if (changes.role && changes.role !== existing.role) {
@@ -293,7 +304,9 @@ const updateStaffStatus = async (req, res) => {
 
     // A deactivated account should not keep working sessions.
     if (!isActive) {
-      await db("user_tokens").where({ user_id: id }).update({ is_revoked: true });
+      await db("user_tokens")
+        .where({ user_id: id })
+        .update({ is_revoked: true });
     }
 
     const staff = await findStaff(id, branchId);
@@ -339,7 +352,9 @@ const deleteStaff = async (req, res) => {
           updated_by: userId,
         });
 
-      await trx("user_tokens").where({ user_id: id }).update({ is_revoked: true });
+      await trx("user_tokens")
+        .where({ user_id: id })
+        .update({ is_revoked: true });
     });
 
     return successResponse(res, { id }, "Staff deleted successfully");

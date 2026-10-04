@@ -3,12 +3,12 @@ import { Badge } from "@/components/ui/badge";
 
 import StaffActions from "./StaffActions";
 
-const ROLE_LABELS = {
-  owner: "Owner",
-  manager: "Manager",
-  front_desk: "Front Desk",
-  trainer: "Trainer",
-};
+// const ROLE_LABELS = {
+//   owner: "Owner",
+//   manager: "Manager",
+//   front_desk: "Front Desk",
+//   trainer: "Trainer",
+// };
 
 const getInitials = (name = "") =>
   name
@@ -51,13 +51,9 @@ export const getStaffColumns = ({
     cell: ({ row }) => row.original.email || "—",
   },
   {
-    accessorKey: "role",
-    header: "Role",
-    cell: ({ row }) => (
-      <Badge variant="outline">
-        {ROLE_LABELS[row.original.role] ?? row.original.role}
-      </Badge>
-    ),
+    accessorKey: "group_name",
+    header: "Group",
+    cell: ({ row }) => row.original.group_name || "—",
   },
   {
     accessorKey: "branch_name",
