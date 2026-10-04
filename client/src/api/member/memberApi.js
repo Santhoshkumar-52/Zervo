@@ -23,3 +23,8 @@ export const updateMemberStatus = (id, isActive) =>
 
 // DELETE /api/member/:id
 export const deleteMember = (id) => api.delete(`/member/${id}`);
+
+// PATCH /api/member/:id
+// body: { first_name, last_name, phone, email, joined_on, assigned_trainer_id, is_active }
+// NOTE: not implemented on the server yet.
+export const updateMember = (id, payload) => api.patch(`/member/${id}`, payload);

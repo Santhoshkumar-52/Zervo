@@ -1,4 +1,4 @@
-const db = require("../../config/knexfile");
+﻿const db = require("../../config/knexfile");
 const { successResponse, errorResponse } = require("../../utils/response");
 
 const getmembers = async (req, res) => {
@@ -63,6 +63,11 @@ const getmembers = async (req, res) => {
         "members.is_active",
         "members.branch_id",
         "members.assigned_trainer_id",
+        "members.first_name",
+        "members.last_name",
+        "members.avatar_url",
+        // plain YYYY-MM-DD so the client date input is not shifted by timezone
+        db.raw("DATE_FORMAT(members.joined_on, '%Y-%m-%d') as joined_on"),
 
         "branches.name as branch_name",
         "branches.is_active as branch_is_active",

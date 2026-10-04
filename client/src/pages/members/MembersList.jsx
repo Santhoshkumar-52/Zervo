@@ -6,13 +6,16 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 
+import AppAlertDialog from "@/components/additonal/AlertDialog";
 import DataTable from "@/components/additonal/Datatable/DataTable";
+import EditMemberDialog from "./EditMemberDialog";
 import {
   deleteMember,
   getMembers,
+  updateMember,
   updateMemberStatus,
 } from "@/api/member/memberApi";
-import { notifyError, notifyInfo, notifySuccess } from "@/utils/notification";
+import { notifyError, notifySuccess } from "@/utils/notification";
 
 import { getMembersColumns } from "./MembersColumns";
 
@@ -30,6 +33,16 @@ function MembersList() {
     pageIndex: 0,
     pageSize: PAGE_SIZE,
   });
+
+  // Edit dialog. `memberToEdit` is kept while the dialog animates closed so
+  // its content does not flicker.
+  const [editOpen, setEditOpen] = useState(false);
+  const [memberToEdit, setMemberToEdit] = useState(null);
+
+  // Delete confirmation dialog. `memberToDelete` is kept while the dialog
+  // animates closed so its text does not flicker.
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [memberToDelete, setMemberToDelete] = useState(null);
 
   // `search` is what the input shows; `debouncedSearch` is what hits the API.
   const [search, setSearch] = useState("");
@@ -90,6 +103,15 @@ function MembersList() {
       notifyError(getApiError(err, "Failed to update member status")),
   });
 
+  const updateMutation = useMutation({
+    mutationFn: ({ member, values }) => updateMember(member.id, values),
+    onSuccess: (_, { member }) => {
+      notifySuccess(`${member.member_name} updated`);
+      invalidateMembers();
+    },
+    onError: (err) => notifyError(getApiError(err, "Failed to update member")),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (member) => deleteMember(member.member_Id),
     onSuccess: (_, member) => {
@@ -101,25 +123,28 @@ function MembersList() {
 
   const { mutate: changeStatus, isPending: isStatusPending, variables: statusVars } =
     statusMutation;
-  const { mutate: removeMember } = deleteMutation;
+  // mutateAsync: the dialog waits for it and stays open if the delete fails.
+  const { mutateAsync: removeMember } = deleteMutation;
+  // mutateAsync: the dialog waits for it and stays open if the update fails.
+  const { mutateAsync: saveMember } = updateMutation;
 
   const columns = useMemo(
     () =>
       getMembersColumns({
-        // TODO: navigate to the edit screen once that route exists.
-        onEdit: (member) =>
-          notifyInfo(`Editing ${member.member_name} is coming soon`),
+        onEdit: (member) => {
+          setMemberToEdit(member);
+          setEditOpen(true);
+        },
         onDelete: (member) => {
-          if (window.confirm(`Delete ${member.member_name}? This cannot be undone.`)) {
-            removeMember(member);
-          }
+          setMemberToDelete(member);
+          setDeleteOpen(true);
         },
         onToggleStatus: (member, isActive) =>
           changeStatus({ member, isActive }),
         isStatusUpdating: (member) =>
           isStatusPending && statusVars?.member.member_Id === member.member_Id,
       }),
-    [changeStatus, removeMember, isStatusPending, statusVars],
+    [changeStatus, isStatusPending, statusVars],
   );
 
   return (
@@ -143,6 +168,25 @@ function MembersList() {
         isLoading={isLoading}
         isFetching={isFetching}
         searchPlaceholder="Search by name, email, phone or trainer..."
+      />
+
+      <EditMemberDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        member={memberToEdit}
+        isLoading={updateMutation.isPending}
+        onSubmit={(values, member) => saveMember({ member, values })}
+      />
+
+      <AppAlertDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title={`Delete ${memberToDelete?.member_name ?? "member"}?`}
+        description="This permanently removes the member and cannot be undone."
+        confirmText="Delete"
+        variant="destructive"
+        isLoading={deleteMutation.isPending}
+        onConfirm={() => removeMember(memberToDelete)}
       />
     </div>
   );
