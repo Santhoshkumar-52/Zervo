@@ -7,6 +7,7 @@ import AppLayout from "@/pages/AppLayout";
 import Login from "@/pages/public/Login";
 import Dashboard from "@/pages/dashboard/index";
 import Members from "@/pages/members/index";
+import Staff from "@/pages/staff/index";
 import Subscriptions from "@/pages/subscriptions/index";
 import Payments from "@/pages/payments/index";
 import Attendance from "@/pages/attendance/index";
@@ -45,6 +46,7 @@ function AppRoutes() {
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/members" element={<Members />} />
+            <Route path="/staff" element={<Staff />} />
             <Route path="/subscriptions" element={<Subscriptions />} />
             <Route path="/payments" element={<Payments />} />
             <Route path="/attendance" element={<Attendance />} />

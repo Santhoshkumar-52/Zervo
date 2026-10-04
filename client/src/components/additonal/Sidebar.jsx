@@ -7,6 +7,7 @@ import {
   LogOut,
   Settings,
   UserCheck,
+  UserCog,
   Users,
 } from "lucide-react";
 
@@ -35,6 +36,11 @@ const mainNavigation = [
     title: "Members",
     url: "/members",
     icon: Users,
+  },
+  {
+    title: "Staff",
+    url: "/staff",
+    icon: UserCog,
   },
   {
     title: "Subscriptions",
