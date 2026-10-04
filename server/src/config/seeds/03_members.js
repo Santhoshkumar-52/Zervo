@@ -11,6 +11,7 @@
 
   await knex("members").insert([
     {
+      member_Id: 1,
       branch_id: branchId["MAIN"],
       first_name: "Arun",
       last_name: "Kumar",
@@ -21,6 +22,7 @@
       deleted_at: null,
     },
     {
+      member_Id: 2,
       branch_id: branchId["MAIN"],
       first_name: "Priya",
       last_name: "Sharma",
@@ -31,6 +33,7 @@
       deleted_at: null,
     },
     {
+      member_Id: 3,
       branch_id: branchId["MAIN"],
       first_name: "Rahul",
       last_name: "Menon",
@@ -41,6 +44,7 @@
       deleted_at: null,
     },
     {
+      member_Id: 4,
       branch_id: branchId["ANNA-NAGAR"],
       first_name: "Sneha",
       last_name: "Reddy",
@@ -51,6 +55,7 @@
       deleted_at: null,
     },
     {
+      member_Id: 5,
       branch_id: branchId["ANNA-NAGAR"],
       first_name: "Vikram",
       last_name: "Patel",

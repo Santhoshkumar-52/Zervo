@@ -16,6 +16,7 @@ import {
 } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
 
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -27,6 +28,13 @@ import {
 
 import DataTablePagination from "./DataTablePagination";
 import DataTableToolbar from "./DataTableToolbar";
+
+// Fixed table height.
+// Every body row is forced to h-12 (3rem) and the header is h-10 (2.5rem),
+// so the table area is always: header + fixedRows * row height.
+// Keep these numbers in sync with the `h-10` / `h-12` classes below.
+const HEADER_HEIGHT_REM = 2.5;
+const ROW_HEIGHT_REM = 3;
 
 // TanStack Table v9: every feature, row model and fn registry must be
 // registered explicitly. globalFilteringFeature REQUIRES columnFilteringFeature,
@@ -53,6 +61,26 @@ function SortIcon({ direction }) {
   return <ChevronsUpDown className="size-4 opacity-50" />;
 }
 
+/**
+ * Two modes:
+ *
+ * 1. Client-side (default): pass `data`; the table sorts/filters/paginates itself.
+ *
+ * 2. Server-side (`manual`): the server does pagination + search. You own the
+ *    state and pass it in:
+ *      pagination / onPaginationChange   -> { pageIndex, pageSize }
+ *      globalFilter / onGlobalFilterChange -> search text
+ *      rowCount                          -> total rows across ALL pages
+ *    Sorting is disabled in this mode (sorting only the current page would
+ *    be misleading).
+ *
+ * `isLoading` (first load, no data yet) shows skeleton rows.
+ * `isFetching` (refetch with previous data still on screen) dims the table.
+ *
+ * Height: the table area is always at least `fixedRows` rows tall (default 10),
+ * so the pagination bar never jumps, whether the page has 10 rows, 2 rows,
+ * is loading, or is empty. A page size larger than `fixedRows` just grows.
+ */
 function DataTable({
   columns,
   data = [],
@@ -61,28 +89,63 @@ function DataTable({
   showToolbar = true,
   enableSelection = false,
   pageSize = 10,
+  fixedRows = 10,
+  getRowId,
+
+  // server-side mode
+  manual = false,
+  pagination,
+  onPaginationChange,
+  globalFilter,
+  onGlobalFilterChange,
+  rowCount,
+  isLoading = false,
+  isFetching = false,
 }) {
-  // The table owns its own state (sorting, globalFilter, pagination, ...).
-  // Read it via `table.state` — `table.getState()` no longer exists in v9.
   const table = useTable({
     features,
     columns,
     data,
+    getRowId,
     enableRowSelection: enableSelection,
-    initialState: {
-      pagination: { pageIndex: 0, pageSize },
-    },
+    enableSorting: !manual,
+    manualPagination: manual,
+    manualFiltering: manual,
+
+    ...(manual
+      ? {
+          rowCount,
+          state: { pagination, globalFilter },
+          onPaginationChange,
+          onGlobalFilterChange,
+        }
+      : {
+          initialState: { pagination: { pageIndex: 0, pageSize } },
+        }),
   });
 
   const rows = table.getRowModel().rows;
+  const visibleColumnCount = table.getVisibleLeafColumns().length || 1;
+  const skeletonRowCount = Math.min(
+    table.state.pagination.pageSize,
+    fixedRows,
+  );
+
+  // +2px because the bordered wrapper is border-box (1px top + 1px bottom).
+  const tableMinHeight = `calc(${HEADER_HEIGHT_REM + fixedRows * ROW_HEIGHT_REM}rem + 2px)`;
 
   return (
-    <div className="w-full space-y-4">
+    <div className="flex w-full flex-col gap-4">
       {showToolbar && (
         <DataTableToolbar table={table} searchPlaceholder={searchPlaceholder} />
       )}
 
-      <div className="rounded-md border">
+      <div
+        style={{ minHeight: tableMinHeight }}
+        className={`rounded-md border transition-opacity ${
+          isFetching && !isLoading ? "opacity-60" : ""
+        }`}
+      >
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -94,6 +157,7 @@ function DataTable({
                   return (
                     <TableHead
                       key={header.id}
+                      className="h-10"
                       aria-sort={
                         sorted === "asc"
                           ? "ascending"
@@ -128,10 +192,23 @@ function DataTable({
           </TableHeader>
 
           <TableBody>
-            {rows.length > 0 ? (
+            {isLoading ? (
+              Array.from({ length: skeletonRowCount }).map((_, rowIndex) => (
+                <TableRow key={`skeleton-row-${rowIndex}`} className="h-12">
+                  {Array.from({ length: visibleColumnCount }).map(
+                    (_, cellIndex) => (
+                      <TableCell key={`skeleton-cell-${cellIndex}`}>
+                        <Skeleton className="h-4 w-full" />
+                      </TableCell>
+                    ),
+                  )}
+                </TableRow>
+              ))
+            ) : rows.length > 0 ? (
               rows.map((row) => (
                 <TableRow
                   key={row.id}
+                  className="h-12"
                   data-state={row.getIsSelected() ? "selected" : undefined}
                 >
                   {row.getVisibleCells().map((cell) => (
@@ -145,10 +222,11 @@ function DataTable({
                 </TableRow>
               ))
             ) : (
-              <TableRow>
+              <TableRow className="hover:bg-transparent">
                 <TableCell
-                  colSpan={table.getVisibleLeafColumns().length || 1}
-                  className="h-24 text-center"
+                  colSpan={visibleColumnCount}
+                  style={{ height: `${fixedRows * ROW_HEIGHT_REM}rem` }}
+                  className="text-center text-muted-foreground"
                 >
                   No results.
                 </TableCell>

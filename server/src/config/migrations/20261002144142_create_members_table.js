@@ -1,15 +1,21 @@
 export async function up(knex) {
   await knex.schema.createTable("members", (table) => {
+    // Internal database ID
     table.increments("id").primary();
+
+    // Business/member ID - can be changed later
+    table.integer("member_Id").unsigned().notNullable().unique().index();
 
     table.integer("branch_id").unsigned().notNullable().index();
 
     table.string("first_name", 100).notNullable();
-
     table.string("last_name", 100).notNullable();
 
     table.string("phone", 20).notNullable();
+    table.string("email", 255).nullable();
+
     table.tinyint("is_active").notNullable().defaultTo(1);
+
     table.date("joined_on").notNullable();
 
     table.integer("assigned_trainer_id").unsigned().nullable().index();
@@ -18,6 +24,7 @@ export async function up(knex) {
 
     table.dateTime("deleted_at").nullable().index();
 
+    // Branch relationship
     table
       .foreign("branch_id")
       .references("id")
@@ -25,6 +32,7 @@ export async function up(knex) {
       .onUpdate("CASCADE")
       .onDelete("RESTRICT");
 
+    // Trainer relationship
     table
       .foreign("assigned_trainer_id")
       .references("id")
@@ -32,6 +40,7 @@ export async function up(knex) {
       .onUpdate("CASCADE")
       .onDelete("SET NULL");
 
+    // Phone must be unique within a branch
     table.unique(["branch_id", "phone"], "members_branch_phone_unique");
   });
 }
