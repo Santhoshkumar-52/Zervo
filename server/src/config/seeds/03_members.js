@@ -4,7 +4,7 @@ const avatarUrl = (name) =>
 
 // 20 sample members spread over both branches with a mix of states:
 //   branch:  MAIN (11) / ANNA-NAGAR (9)
-//   status:  active (15) / inactive (5)
+//   status:  active (14) / inactive (6)
 //   trainer: assigned / unassigned (only Anna Nagar has a trainer seeded)
 //   email, date of birth and avatar: present for some, missing for others
 //   joined:  spread from mid-2025 to this month
