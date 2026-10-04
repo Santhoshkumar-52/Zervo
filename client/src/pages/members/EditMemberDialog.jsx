@@ -1,7 +1,8 @@
-﻿import { useEffect, useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import Field from "@/components/additonal/Field";
 
 import DatePicker from "@/components/additonal/DatePicker";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -15,7 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+
 import {
   Select,
   SelectContent,
@@ -30,11 +31,11 @@ const NO_TRAINER = "none";
 
 const memberSchema = z.object({
   first_name: z.string().trim().min(1, "First name is required").max(100),
-  last_name: z.string().trim().min(1, "Last name is required").max(100),
+  last_name: z.string().trim().max(100),
   phone: z
     .string()
     .trim()
-    .min(1, "Phone is required")
+    .min(8, "Phone is required")
     .regex(/^[0-9+\-\s()]{7,20}$/, "Enter a valid phone number"),
   // Optional: empty is allowed, otherwise it must be a valid email.
   email: z
@@ -57,34 +58,29 @@ const getInitials = (name = "") =>
     .map((part) => part[0].toUpperCase())
     .join("");
 
+// Today as YYYY-MM-DD in the user's local time (default joined date).
+const today = () => {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+
+  return `${now.getFullYear()}-${month}-${day}`;
+};
+
+// With no member (create mode) the form starts empty, dated today, and active.
 const toFormValues = (member) => ({
   first_name: member?.first_name ?? "",
   last_name: member?.last_name ?? "",
   phone: member?.phone ?? "",
   email: member?.email ?? "",
-  joined_on: member?.joined_on ?? "",
+  joined_on: member?.joined_on ?? today(),
   assigned_trainer_id: member?.assigned_trainer_id
     ? String(member.assigned_trainer_id)
     : NO_TRAINER,
-  is_active: Boolean(member?.is_active),
+  is_active: member ? Boolean(member.is_active) : true,
 });
 
 // Label + control + error message.
-function Field({ label, htmlFor, required = false, error, className, children }) {
-  return (
-    <div className={`flex flex-col gap-1.5 ${className ?? ""}`}>
-      <Label htmlFor={htmlFor} required={required}>
-        {label}
-      </Label>
-      {children}
-      {error && (
-        <p className="text-xs text-destructive" role="alert">
-          {error}
-        </p>
-      )}
-    </div>
-  );
-}
 
 /**
  * Dialog to edit a member record.
@@ -94,6 +90,7 @@ function Field({ label, htmlFor, required = false, error, className, children })
  *     onOpenChange={setOpen}
  *     member={member}               // a row from the members list
  *     isLoading={updateMutation.isPending}
+ *     isMemberLoading={isFetchingMember}  // disables Save while the member loads
  *     onSubmit={(values) => updateMutation.mutateAsync({ id, values })}
  *   />
  *
@@ -109,7 +106,11 @@ function EditMemberDialog({
   member,
   onSubmit,
   isLoading = false,
+  isMemberLoading = false,
+  mode = "edit", // "edit" | "create" (create: pass member={null})
 }) {
+  const isCreate = mode === "create";
+
   // Assigned-staff options come from the staff store.
   const staff = useStaffStore((state) => state.staff);
 
@@ -180,9 +181,11 @@ function EditMemberDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg!">
         <DialogHeader>
-          <DialogTitle>Edit member</DialogTitle>
+          <DialogTitle>{isCreate ? "Add member" : "Edit member"}</DialogTitle>
           <DialogDescription>
-            Update the details for {fullName || "this member"}.
+            {isCreate
+              ? "Enter the details of the new member."
+              : `Update the details for ${fullName || "this member"}.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -192,9 +195,13 @@ function EditMemberDialog({
           className="flex flex-col gap-4"
         >
           {/* Avatar: changing the photo is disabled for now */}
+          {!isCreate && (
           <div className="flex items-center gap-3">
             <Avatar size="lg">
-              <AvatarImage src={member?.photo_url ?? undefined} alt={fullName} />
+              <AvatarImage
+                src={member?.photo_url ?? undefined}
+                alt={fullName}
+              />
               <AvatarFallback>{getInitials(fullName)}</AvatarFallback>
             </Avatar>
 
@@ -207,6 +214,7 @@ function EditMemberDialog({
               </span>
             </div>
           </div>
+          )}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field
@@ -226,7 +234,6 @@ function EditMemberDialog({
             <Field
               label="Last name"
               htmlFor="edit-member-last-name"
-              required
               error={errors.last_name?.message}
             >
               <Input
@@ -342,8 +349,17 @@ function EditMemberDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading || !isDirty}>
-              {isLoading ? "Saving..." : "Save changes"}
+            <Button
+              type="submit"
+              disabled={isLoading || isMemberLoading || (!isCreate && !isDirty)}
+            >
+              {isLoading
+                ? isCreate
+                  ? "Creating..."
+                  : "Saving..."
+                : isCreate
+                  ? "Create member"
+                  : "Save changes"}
             </Button>
           </DialogFooter>
         </form>

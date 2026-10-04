@@ -1,166 +1,131 @@
-﻿import { useEffect, useMemo, useState } from "react";
-import {
-  keepPreviousData,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { Plus } from "lucide-react";
 
 import AppAlertDialog from "@/components/additonal/AlertDialog";
 import DataTable from "@/components/additonal/Datatable/DataTable";
-import EditMemberDialog from "./EditMemberDialog";
-import {
-  deleteMember,
-  getMembers,
-  updateMember,
-  updateMemberStatus,
-} from "@/api/member/memberApi";
-import { notifyError, notifySuccess } from "@/utils/notification";
+import { Button } from "@/components/ui/button";
+import { useMemberStore } from "@/store/member";
 
+import EditMemberDialog from "./EditMemberDialog";
 import { getMembersColumns } from "./MembersColumns";
 
-const PAGE_SIZE = 10;
 const SEARCH_DEBOUNCE_MS = 400;
 
-const getRowId = (row) => String(row.member_Id);
+// Rows are keyed by the internal `id`, the same id every member endpoint uses.
+const getRowId = (row) => String(row.id);
 
-const getApiError = (error, fallback) =>
-  error?.response?.data?.message || error?.message || fallback;
-
+/**
+ * Members screen. Everything it shows comes from the member store, and every
+ * change goes through a store action (API call -> store update -> re-render):
+ *
+ *   list    fetchMembers      (runs when the page or applied search changes)
+ *   add     createMember      -> row added to the table
+ *   edit    fetchMemberById, updateMember -> row replaced
+ *   status  toggleStatus      -> row replaced
+ *   delete  deleteMember      -> row removed
+ */
 function MembersList() {
-  const queryClient = useQueryClient();
-  const [pagination, setPagination] = useState({
-    pageIndex: 0,
-    pageSize: PAGE_SIZE,
-  });
+  // ---- Rendered from the store ---------------------------------------
+  const members = useMemberStore((state) => state.members);
+  const total = useMemberStore((state) => state.total);
+  const search = useMemberStore((state) => state.search);
+  const pagination = useMemberStore((state) => state.pagination);
+  const appliedSearch = useMemberStore((state) => state.appliedSearch);
+  const isLoading = useMemberStore((state) => state.isLoading);
+  const isFetching = useMemberStore((state) => state.isFetching);
+  const error = useMemberStore((state) => state.error);
+  const selectedMember = useMemberStore((state) => state.selectedMember);
+  const isSelectedLoading = useMemberStore((state) => state.isSelectedLoading);
+  const isSaving = useMemberStore((state) => state.isSaving);
+  const isDeleting = useMemberStore((state) => state.isDeleting);
+  const statusUpdatingIds = useMemberStore((state) => state.statusUpdatingIds);
 
-  // Edit dialog. `memberToEdit` is kept while the dialog animates closed so
-  // its content does not flicker.
+  // ---- Store actions -------------------------------------------------
+  const setSearch = useMemberStore((state) => state.setSearch);
+  const applySearch = useMemberStore((state) => state.applySearch);
+  const setPagination = useMemberStore((state) => state.setPagination);
+  const fetchMembers = useMemberStore((state) => state.fetchMembers);
+  const selectMember = useMemberStore((state) => state.selectMember);
+  const fetchMemberById = useMemberStore((state) => state.fetchMemberById);
+  const createMember = useMemberStore((state) => state.createMember);
+  const updateMember = useMemberStore((state) => state.updateMember);
+  const toggleStatus = useMemberStore((state) => state.toggleStatus);
+  const deleteMember = useMemberStore((state) => state.deleteMember);
+
+  // ---- Dialog UI state (which dialog is open) ------------------------
+  const [createOpen, setCreateOpen] = useState(false);
+
+  // The edited member itself lives in the store (`selectedMember`); it stays
+  // after the dialog closes so its content does not flicker.
   const [editOpen, setEditOpen] = useState(false);
-  const [memberToEdit, setMemberToEdit] = useState(null);
 
-  // Delete confirmation dialog. `memberToDelete` is kept while the dialog
-  // animates closed so its text does not flicker.
+  // Kept while the dialog animates closed so its text does not flicker.
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [memberToDelete, setMemberToDelete] = useState(null);
 
-  // `search` is what the input shows; `debouncedSearch` is what hits the API.
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  // { member, isActive } for the status confirmation dialog.
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [statusChange, setStatusChange] = useState(null);
 
+  // Apply the typed search to the list once the user stops typing.
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(search.trim());
-
-      // A new search always starts from page 1.
-      setPagination((prev) =>
-        prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 },
-      );
-    }, SEARCH_DEBOUNCE_MS);
+    const timer = setTimeout(
+      () => applySearch(search.trim()),
+      SEARCH_DEBOUNCE_MS,
+    );
 
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [search, applySearch]);
 
-  const page = pagination.pageIndex + 1;
-  const limit = pagination.pageSize;
-
-  const { data, isLoading, isFetching, isError, error } = useQuery({
-    queryKey: ["members", { page, limit, search: debouncedSearch }],
-    queryFn: async () => {
-      const response = await getMembers({
-        page,
-        limit,
-        search: debouncedSearch,
-      });
-
-      // Server shape: { success, message, data: { members, pagination } }
-      return response.data.data;
-    },
-    // Keep showing the previous page's rows while the next page loads.
-    placeholderData: keepPreviousData,
-  });
-
-  const errorMessage =
-    error?.response?.data?.message || error?.message || "Failed to load members";
-
+  // Load the list whenever the page or the applied search changes.
   useEffect(() => {
-    if (isError) notifyError(errorMessage);
-  }, [isError, errorMessage]);
-
-  const invalidateMembers = () =>
-    queryClient.invalidateQueries({ queryKey: ["members"] });
-
-  const statusMutation = useMutation({
-    mutationFn: ({ member, isActive }) =>
-      updateMemberStatus(member.member_Id, isActive),
-    onSuccess: (_, { member, isActive }) => {
-      notifySuccess(
-        `${member.member_name} marked as ${isActive ? "active" : "inactive"}`,
-      );
-      invalidateMembers();
-    },
-    onError: (err) =>
-      notifyError(getApiError(err, "Failed to update member status")),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ member, values }) => updateMember(member.id, values),
-    onSuccess: (_, { member }) => {
-      notifySuccess(`${member.member_name} updated`);
-      invalidateMembers();
-    },
-    onError: (err) => notifyError(getApiError(err, "Failed to update member")),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (member) => deleteMember(member.member_Id),
-    onSuccess: (_, member) => {
-      notifySuccess(`${member.member_name} deleted`);
-      invalidateMembers();
-    },
-    onError: (err) => notifyError(getApiError(err, "Failed to delete member")),
-  });
-
-  const { mutate: changeStatus, isPending: isStatusPending, variables: statusVars } =
-    statusMutation;
-  // mutateAsync: the dialog waits for it and stays open if the delete fails.
-  const { mutateAsync: removeMember } = deleteMutation;
-  // mutateAsync: the dialog waits for it and stays open if the update fails.
-  const { mutateAsync: saveMember } = updateMutation;
+    fetchMembers();
+  }, [fetchMembers, appliedSearch, pagination.pageIndex, pagination.pageSize]);
 
   const columns = useMemo(
     () =>
       getMembersColumns({
         onEdit: (member) => {
-          setMemberToEdit(member);
+          // Show the row's data straight away, then refresh it by id.
+          selectMember(member);
           setEditOpen(true);
+          fetchMemberById(member.id).catch(() => setEditOpen(false));
         },
         onDelete: (member) => {
           setMemberToDelete(member);
           setDeleteOpen(true);
         },
-        onToggleStatus: (member, isActive) =>
-          changeStatus({ member, isActive }),
-        isStatusUpdating: (member) =>
-          isStatusPending && statusVars?.member.member_Id === member.member_Id,
+        // Ask for confirmation first; the switch only changes after confirming.
+        onToggleStatus: (member, isActive) => {
+          setStatusChange({ member, isActive });
+          setStatusOpen(true);
+        },
+        isStatusUpdating: (member) => statusUpdatingIds.includes(member.id),
       }),
-    [changeStatus, isStatusPending, statusVars],
+    [selectMember, fetchMemberById, statusUpdatingIds],
   );
 
   return (
     <div className="space-y-4">
-      {isError && (
+      <div className="flex justify-end">
+        <Button onClick={() => setCreateOpen(true)}>
+          <Plus />
+          Add member
+        </Button>
+      </div>
+
+      {error && (
         <p className="text-sm text-destructive" role="alert">
-          {errorMessage}
+          {error}
         </p>
       )}
 
       <DataTable
         manual
         columns={columns}
-        data={data?.members ?? []}
+        data={members}
         getRowId={getRowId}
-        rowCount={data?.pagination?.total ?? 0}
+        rowCount={total}
         pagination={pagination}
         onPaginationChange={setPagination}
         globalFilter={search}
@@ -170,23 +135,56 @@ function MembersList() {
         searchPlaceholder="Search by name, email, phone or trainer..."
       />
 
+      {/* Add. The dialog closes only when createMember resolves. */}
+      <EditMemberDialog
+        mode="create"
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        member={null}
+        isLoading={isSaving}
+        onSubmit={(values) => createMember(values)}
+      />
+
+      {/* Edit. The dialog closes only when updateMember resolves. */}
       <EditMemberDialog
         open={editOpen}
         onOpenChange={setEditOpen}
-        member={memberToEdit}
-        isLoading={updateMutation.isPending}
-        onSubmit={(values, member) => saveMember({ member, values })}
+        member={selectedMember}
+        isMemberLoading={isSelectedLoading}
+        isLoading={isSaving}
+        onSubmit={(values, member) => updateMember(member.id, values)}
+      />
+
+      <AppAlertDialog
+        open={statusOpen}
+        onOpenChange={setStatusOpen}
+        title={`${statusChange?.isActive ? "Activate" : "Deactivate"} ${
+          statusChange?.member.member_name ?? "member"
+        }?`}
+        description={
+          statusChange?.isActive
+            ? "This member will be marked as active."
+            : "This member will be marked as inactive."
+        }
+        confirmText={statusChange?.isActive ? "Activate" : "Deactivate"}
+        variant={statusChange?.isActive ? "default" : "destructive"}
+        isLoading={
+          statusChange ? statusUpdatingIds.includes(statusChange.member.id) : false
+        }
+        onConfirm={() =>
+          toggleStatus(statusChange.member, statusChange.isActive)
+        }
       />
 
       <AppAlertDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         title={`Delete ${memberToDelete?.member_name ?? "member"}?`}
-        description="This permanently removes the member and cannot be undone."
+        description="This removes the member from the list. This action cannot be undone from the app."
         confirmText="Delete"
         variant="destructive"
-        isLoading={deleteMutation.isPending}
-        onConfirm={() => removeMember(memberToDelete)}
+        isLoading={isDeleting}
+        onConfirm={() => deleteMember(memberToDelete)}
       />
     </div>
   );
