@@ -1,4 +1,4 @@
-import { create } from "zustand";
+﻿import { create } from "zustand";
 
 const initialPagination = {
   pageIndex: 0,
@@ -30,9 +30,9 @@ export const useStaffStore = create((set) => ({
     }),
 
   // A new search always goes back to the first page.
-  setSearch: (search) =>
+  setSearch: (updater) =>
     set((state) => ({
-      search,
+      search: typeof updater === "function" ? updater(state.search) : updater,
       pagination: { ...state.pagination, pageIndex: 0 },
     })),
 
