@@ -16,6 +16,9 @@ import Setting from "@/pages/settings/index";
 import NotFound from "@/pages/public/NotFound";
 import Offline from "@/pages/public/Offline";
 import { useEffect, useState } from "react";
+import Tax from "@/pages/tax";
+import Plans from "@/pages/plans";
+import Discount from "@/pages/discount";
 
 function AppRoutes() {
   // for offline detection
@@ -52,6 +55,9 @@ function AppRoutes() {
             <Route path="/attendance" element={<Attendance />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/settings" element={<Setting />} />
+            <Route path="/plans" element={<Plans />} />
+            <Route path="/tax" element={<Tax />} />
+            <Route path="/discount" element={<Discount />} />
           </Route>
         </Route>
 

@@ -1,10 +1,13 @@
 ﻿import { Link, useLocation } from "react-router-dom";
 import {
   BarChart3,
+  ChevronDown,
   CreditCard,
   Dumbbell,
   LayoutDashboard,
   LogOut,
+  Percent,
+  ReceiptText,
   Settings,
   UserCheck,
   UserCog,
@@ -23,9 +26,15 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+
 import { useAuthStore } from "@/store/auth";
 
-const { logout } = useAuthStore.getState();
 const mainNavigation = [
   {
     title: "Dashboard",
@@ -64,6 +73,24 @@ const mainNavigation = [
   },
 ];
 
+const setupNavigation = [
+  {
+    title: "Tax",
+    url: "/tax",
+    icon: ReceiptText,
+  },
+  {
+    title: "Discount",
+    url: "/discount",
+    icon: Percent,
+  },
+  {
+    title: "Plans",
+    url: "/plans",
+    icon: Dumbbell,
+  },
+];
+
 const settingsNavigation = [
   {
     title: "Settings",
@@ -75,6 +102,8 @@ const settingsNavigation = [
 export default function AppSidebar() {
   const location = useLocation();
 
+  const { logout } = useAuthStore.getState();
+
   const isActive = (url) => {
     if (url === "/dashboard") {
       return location.pathname === "/" || location.pathname === "/dashboard";
@@ -83,11 +112,14 @@ export default function AppSidebar() {
     return location.pathname.startsWith(url);
   };
 
+  // Keep Setup active whenever one of its child pages is active
+  const isSetupActive = setupNavigation.some((item) =>
+    location.pathname.startsWith(item.url),
+  );
+
   return (
     <Sidebar collapsible="icon" variant="sidebar" className="border-r">
-      {/* ------------------------------------------------
-          HEADER
-      ------------------------------------------------ */}
+      {/* HEADER */}
       <SidebarHeader className="border-b px-2 py-3">
         <SidebarMenu>
           <SidebarMenuItem>
@@ -97,12 +129,10 @@ export default function AppSidebar() {
               className="hover:bg-muted"
               render={<Link to="/dashboard" />}
             >
-              {/* Logo */}
               <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                 <Dumbbell className="size-5" />
               </div>
 
-              {/* Brand */}
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">Zervo Gym</span>
 
@@ -115,11 +145,9 @@ export default function AppSidebar() {
         </SidebarMenu>
       </SidebarHeader>
 
-      {/* ------------------------------------------------
-          CONTENT
-      ------------------------------------------------ */}
-      <SidebarContent className="px-2 py-4 text-xl">
-        {/* Management */}
+      {/* CONTENT */}
+      <SidebarContent className="px-2 py-4">
+        {/* MANAGEMENT */}
         <SidebarGroup>
           <SidebarGroupLabel className="px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Management
@@ -149,8 +177,67 @@ export default function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* System */}
-        <SidebarGroup className="mt-6">
+        {/* SETUP */}
+        <SidebarGroup className="mt-2">
+          <SidebarGroupLabel className="px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Setup
+          </SidebarGroupLabel>
+
+          <SidebarGroupContent>
+            <SidebarMenu className="gap-1">
+              <SidebarMenuItem>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <SidebarMenuButton
+                      isActive={isSetupActive}
+                      tooltip="Setup"
+                      className="h-10 px-3 cursor-pointer"
+                    >
+                      <Settings className="size-4" />
+
+                      <span className="flex-1 text-left">Setup</span>
+
+                      <ChevronDown className="size-4 shrink-0 transition-transform" />
+                    </SidebarMenuButton>
+                  </PopoverTrigger>
+
+                  <PopoverContent
+                    side="right"
+                    align="start"
+                    sideOffset={8}
+                    className="w-full p-1"
+                  >
+                    <div className="flex flex-col gap-1">
+                      {setupNavigation.map((item) => {
+                        const Icon = item.icon;
+                        const active = isActive(item.url);
+
+                        return (
+                          <Link
+                            key={item.title}
+                            to={item.url}
+                            className={`flex h-9 items-center gap-2 rounded-md px-3 text-sm transition-colors ${
+                              active
+                                ? "bg-accent text-accent-foreground"
+                                : "hover:bg-accent hover:text-accent-foreground"
+                            }`}
+                          >
+                            <Icon className="size-4" />
+
+                            <span>{item.title}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* SYSTEM */}
+        <SidebarGroup className="mt-2">
           <SidebarGroupLabel className="px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
             System
           </SidebarGroupLabel>
@@ -180,9 +267,7 @@ export default function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      {/* ------------------------------------------------
-          FOOTER
-      ------------------------------------------------ */}
+      {/* FOOTER */}
       <SidebarFooter className="border-t p-2">
         <SidebarMenu>
           <SidebarMenuItem>
@@ -192,8 +277,6 @@ export default function AppSidebar() {
               className="h-10 px-3 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
               onClick={() => {
                 logout();
-
-                console.log("Logout");
               }}
             >
               <LogOut className="size-4" />
