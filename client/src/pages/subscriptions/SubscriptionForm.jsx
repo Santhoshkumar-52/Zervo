@@ -1,0 +1,337 @@
+import { Controller, useForm, useWatch } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery } from "@tanstack/react-query";
+import { format } from "date-fns";
+import { LoaderCircle, Plus, ReceiptText } from "lucide-react";
+
+import { getDiscountTypes } from "@/api/subscription/subscriptionApi";
+import AsyncCombobox from "@/components/additonal/AsyncCombobox";
+import DatePicker from "@/components/additonal/DatePicker";
+import Field from "@/components/additonal/Field";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { calculateTotals, DISCOUNT_TYPE } from "@/utils/billing";
+import { currency, formatMoney } from "@/utils/currency";
+import { notifySuccess } from "@/utils/notification";
+
+import PlanInfo from "./PlanInfo";
+import { memberSource, planSource, taxSource } from "./optionSources";
+import { getDefaultValues, subscriptionSchema } from "./subscriptionSchema";
+
+const READ_ONLY_CLASS = "bg-muted/40 tabular-nums";
+
+const getDiscountValueLabel = (type) => {
+  if (type === DISCOUNT_TYPE.PERCENTAGE) return "Discount value (%)";
+  if (type === DISCOUNT_TYPE.FIXED && currency) {
+    return `Discount value (${currency})`;
+  }
+
+  return "Discount value";
+};
+
+/**
+ * Form for one bill item. Adding it sends the item to `onAddItem(payload)`;
+ * the server calculates the amounts, so the figures here are a preview.
+ *
+ *   <SubscriptionForm hasItems={items.length > 0} onAddItem={addItem} />
+ *
+ * Member and bill date belong to the whole bill, so they are locked once the
+ * bill has items. The plan, tax and discount reset for the next item.
+ */
+function SubscriptionForm({ hasItems = false, onAddItem }) {
+  const {
+    control,
+    handleSubmit,
+    reset,
+    setValue,
+    clearErrors,
+    formState: { errors, isSubmitting },
+  } = useForm({
+    resolver: zodResolver(subscriptionSchema),
+    defaultValues: getDefaultValues(format(new Date(), "yyyy-MM-dd")),
+  });
+
+  const { data: discountTypes = [] } = useQuery({
+    queryKey: ["discount-types"],
+    queryFn: getDiscountTypes,
+    staleTime: Infinity,
+  });
+
+  const [member, plan, tax, discountType, discountValue] = useWatch({
+    control,
+    name: ["member", "plan", "tax", "discount_type", "discount_value"],
+  });
+
+  const totals = calculateTotals({
+    priceMinor: plan?.price_minor,
+    discountType,
+    discountValue,
+    taxRate: tax?.rate,
+  });
+
+  const discountItems = discountTypes.map(({ id, name }) => ({
+    value: id,
+    label: name,
+  }));
+  const isLocked = hasItems && Boolean(member);
+  const hasDiscount = discountType !== DISCOUNT_TYPE.NONE;
+
+  const handleDiscountTypeChange = (nextType, field) => {
+    field.onChange(nextType);
+
+    if (nextType === DISCOUNT_TYPE.NONE) {
+      setValue("discount_value", "");
+      clearErrors("discount_value");
+    }
+  };
+
+  const submit = async (values) => {
+    try {
+      await onAddItem({
+        member_id: values.member.id,
+        plan_id: values.plan.id,
+        tax_id: values.tax?.id ?? null,
+        discount_type: values.discount_type,
+        discount_value: hasDiscount ? Number(values.discount_value) : 0,
+        bill_date: values.bill_date,
+      });
+    } catch {
+      // The caller shows the error; keep the form as it is.
+      return;
+    }
+
+    notifySuccess("Item added to the bill");
+
+    // Next item: keep the member and date, clear the rest.
+    reset({ ...getDefaultValues(values.bill_date), member: values.member });
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <ReceiptText className="size-5" />
+          New subscription
+        </CardTitle>
+
+        <CardDescription>
+          Choose a member and a plan, then add it to the bill.
+        </CardDescription>
+      </CardHeader>
+
+      <CardContent>
+        <form
+          noValidate
+          onSubmit={handleSubmit(submit)}
+          className="grid grid-cols-1 gap-4 md:grid-cols-2"
+        >
+          <Field
+            label="Member"
+            htmlFor="subscription-member"
+            required
+            error={errors.member?.message}
+          >
+            <Controller
+              name="member"
+              control={control}
+              render={({ field }) => (
+                <AsyncCombobox
+                  id="subscription-member"
+                  source={memberSource}
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  placeholder="Search member..."
+                  disabled={isLocked}
+                  invalid={Boolean(errors.member)}
+                />
+              )}
+            />
+            {isLocked && (
+              <p className="text-xs text-muted-foreground">
+                Locked while the bill has items.
+              </p>
+            )}
+          </Field>
+
+          <Field
+            label="Bill date"
+            htmlFor="subscription-bill-date"
+            required
+            error={errors.bill_date?.message}
+          >
+            <Controller
+              name="bill_date"
+              control={control}
+              render={({ field }) => (
+                <DatePicker
+                  id="subscription-bill-date"
+                  value={field.value}
+                  onChange={field.onChange}
+                  disabled={isLocked}
+                />
+              )}
+            />
+          </Field>
+
+          <Field
+            label="Plan"
+            htmlFor="subscription-plan"
+            required
+            error={errors.plan?.message}
+          >
+            <Controller
+              name="plan"
+              control={control}
+              render={({ field }) => (
+                <AsyncCombobox
+                  id="subscription-plan"
+                  source={planSource}
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  placeholder="Search plan..."
+                  invalid={Boolean(errors.plan)}
+                />
+              )}
+            />
+            <p className="flex min-h-5 items-center gap-1.5 text-xs text-muted-foreground">
+              {plan ? (
+                <>
+                  Price: {formatMoney(plan.price_minor)}
+                  <PlanInfo plan={plan} />
+                </>
+              ) : (
+                "Select a plan to see its price."
+              )}
+            </p>
+          </Field>
+
+          <Field label="Tax" htmlFor="subscription-tax">
+            <Controller
+              name="tax"
+              control={control}
+              render={({ field }) => (
+                <AsyncCombobox
+                  id="subscription-tax"
+                  source={taxSource}
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  placeholder="No tax"
+                  clearable
+                />
+              )}
+            />
+            <p className="flex min-h-5 items-center text-xs text-muted-foreground">
+              {tax ? `Rate: ${Number(tax.rate)}%` : "No tax applied."}
+            </p>
+          </Field>
+
+          <Field label="Discount type" htmlFor="subscription-discount-type">
+            <Controller
+              name="discount_type"
+              control={control}
+              render={({ field }) => (
+                <Select
+                  items={discountItems}
+                  value={field.value}
+                  onValueChange={(next) => handleDiscountTypeChange(next, field)}
+                  disabled={discountItems.length === 0}
+                >
+                  <SelectTrigger
+                    id="subscription-discount-type"
+                    className="w-full"
+                  >
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {discountItems.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          </Field>
+
+          <Field
+            label={getDiscountValueLabel(discountType)}
+            htmlFor="subscription-discount-value"
+            error={errors.discount_value?.message}
+          >
+            <Controller
+              name="discount_value"
+              control={control}
+              render={({ field }) => (
+                <Input
+                  {...field}
+                  id="subscription-discount-value"
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  placeholder={hasDiscount ? "e.g. 10" : "No discount"}
+                  disabled={!hasDiscount}
+                  aria-invalid={Boolean(errors.discount_value)}
+                />
+              )}
+            />
+          </Field>
+
+          <Field label="Tax amount" htmlFor="subscription-tax-amount">
+            <Input
+              id="subscription-tax-amount"
+              readOnly
+              value={formatMoney(totals.taxMinor)}
+              className={READ_ONLY_CLASS}
+            />
+          </Field>
+
+          <Field label="Total price" htmlFor="subscription-total-price">
+            <div className="flex items-center gap-2">
+              <Input
+                id="subscription-total-price"
+                readOnly
+                value={formatMoney(totals.totalMinor)}
+                className={`${READ_ONLY_CLASS} flex-1 font-semibold`}
+              />
+              <Button
+                type="submit"
+                size="icon"
+                aria-label="Add item to the bill"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <LoaderCircle className="animate-spin" />
+                ) : (
+                  <Plus />
+                )}
+              </Button>
+            </div>
+            {totals.discountMinor > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Includes a discount of {formatMoney(totals.discountMinor)}.
+              </p>
+            )}
+          </Field>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default SubscriptionForm;

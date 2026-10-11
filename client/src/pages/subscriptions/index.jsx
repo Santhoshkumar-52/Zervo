@@ -1,15 +1,13 @@
-import { Dumbbell } from "lucide-react";
-
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import Title from "@/components/additonal/Title";
 
+import SubscriptionFooter from "./SubscriptionFooter";
+import SubscriptionForm from "./SubscriptionForm";
+import SubscriptionItems from "./SubscriptionItems";
+import { useSubscriptionBill } from "./useSubscriptionBill";
+
 function Subscriptions() {
+  const { bill, isLoading, addItem } = useSubscriptionBill();
+
   return (
     <div className="space-y-6">
       <Title
@@ -17,22 +15,17 @@ function Subscriptions() {
         description="Manage membership plans and member subscriptions."
       />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Dumbbell className="size-5" />
-            Subscriptions
-          </CardTitle>
+      <SubscriptionForm
+        hasItems={bill.items.length > 0}
+        onAddItem={addItem}
+      />
 
-          <CardDescription>Nothing here yet.</CardDescription>
-        </CardHeader>
+      <SubscriptionItems items={bill.items} isLoading={isLoading} />
 
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            This page is under construction.
-          </p>
-        </CardContent>
-      </Card>
+      <SubscriptionFooter
+        itemCount={bill.totals.item_count}
+        grandTotalMinor={bill.totals.grand_total_minor}
+      />
     </div>
   );
 }
