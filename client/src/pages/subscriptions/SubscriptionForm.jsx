@@ -1,7 +1,7 @@
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { addDays, format, isValid, parse } from "date-fns";
 import { LoaderCircle, Plus, ReceiptText } from "lucide-react";
 
 import { getDiscountTypes } from "@/api/subscription/subscriptionApi";
@@ -33,6 +33,8 @@ import { memberSource, planSource, taxSource } from "./optionSources";
 import { getDefaultValues, subscriptionSchema } from "./subscriptionSchema";
 
 const READ_ONLY_CLASS = "bg-muted/40 tabular-nums";
+const VALUE_FORMAT = "yyyy-MM-dd";
+const DISPLAY_FORMAT = "dd MMM yyyy";
 
 const getDiscountValueLabel = (type) => {
   if (type === DISCOUNT_TYPE.PERCENTAGE) return "Discount value (%)";
@@ -43,6 +45,18 @@ const getDiscountValueLabel = (type) => {
   return "Discount value";
 };
 
+// Start date counts as day 1, so end = start + (duration_days - 1). Returns null (so the field shows empty) when
+// there is no valid start date or no plan with a duration.
+const getEndDate = (startDate, plan) => {
+  const days = Number(plan?.duration_days);
+
+  if (!startDate || !(days > 0)) return null;
+
+  const start = parse(startDate, VALUE_FORMAT, new Date());
+
+  return isValid(start) ? addDays(start, days - 1) : null;
+};
+
 /**
  * Form for one bill item. Adding it sends the item to `onAddItem(payload)`;
  * the server calculates the amounts, so the figures here are a preview.
@@ -50,7 +64,9 @@ const getDiscountValueLabel = (type) => {
  *   <SubscriptionForm hasItems={items.length > 0} onAddItem={addItem} />
  *
  * Member and bill date belong to the whole bill, so they are locked once the
- * bill has items. The plan, tax and discount reset for the next item.
+ * bill has items. The plan, start date, tax and discount reset for the next
+ * item. The end date is never typed: it is the last day of the plan's
+ * `duration_days` (start date is day 1), and it is empty until both are chosen.
  */
 function SubscriptionForm({ hasItems = false, onAddItem }) {
   const {
@@ -62,7 +78,7 @@ function SubscriptionForm({ hasItems = false, onAddItem }) {
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(subscriptionSchema),
-    defaultValues: getDefaultValues(format(new Date(), "yyyy-MM-dd")),
+    defaultValues: getDefaultValues(format(new Date(), VALUE_FORMAT)),
   });
 
   const { data: discountTypes = [] } = useQuery({
@@ -71,9 +87,16 @@ function SubscriptionForm({ hasItems = false, onAddItem }) {
     staleTime: Infinity,
   });
 
-  const [member, plan, tax, discountType, discountValue] = useWatch({
+  const [member, plan, startDate, tax, discountType, discountValue] = useWatch({
     control,
-    name: ["member", "plan", "tax", "discount_type", "discount_value"],
+    name: [
+      "member",
+      "plan",
+      "start_date",
+      "tax",
+      "discount_type",
+      "discount_value",
+    ],
   });
 
   const totals = calculateTotals({
@@ -82,6 +105,9 @@ function SubscriptionForm({ hasItems = false, onAddItem }) {
     discountValue,
     taxRate: tax?.rate,
   });
+
+  // Derived, so it clears by itself when the start date or the plan is cleared.
+  const endDate = getEndDate(startDate, plan);
 
   const discountItems = discountTypes.map(({ id, name }) => ({
     value: id,
@@ -108,6 +134,7 @@ function SubscriptionForm({ hasItems = false, onAddItem }) {
         discount_type: values.discount_type,
         discount_value: hasDiscount ? Number(values.discount_value) : 0,
         bill_date: values.bill_date,
+        start_date: values.start_date,
       });
     } catch {
       // The caller shows the error; keep the form as it is.
@@ -116,7 +143,8 @@ function SubscriptionForm({ hasItems = false, onAddItem }) {
 
     notifySuccess("Item added to the bill");
 
-    // Next item: keep the member and date, clear the rest.
+    // Next item: keep the member and date, clear the rest (start and end date
+    // included).
     reset({ ...getDefaultValues(values.bill_date), member: values.member });
   };
 
@@ -217,6 +245,37 @@ function SubscriptionForm({ hasItems = false, onAddItem }) {
                 "Select a plan to see its price."
               )}
             </p>
+          </Field>
+
+          <Field
+            label="Start date"
+            htmlFor="subscription-start-date"
+            required
+            error={errors.start_date?.message}
+          >
+            <Controller
+              name="start_date"
+              control={control}
+              render={({ field }) => (
+                <DatePicker
+                  id="subscription-start-date"
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder="Pick start date"
+                  endYear={new Date().getFullYear() + 5}
+                />
+              )}
+            />
+          </Field>
+
+          <Field label="End date" htmlFor="subscription-end-date">
+            <Input
+              id="subscription-end-date"
+              readOnly
+              value={endDate ? format(endDate, DISPLAY_FORMAT) : ""}
+              placeholder="Select a plan and start date"
+              className={READ_ONLY_CLASS}
+            />
           </Field>
 
           <Field label="Tax" htmlFor="subscription-tax">

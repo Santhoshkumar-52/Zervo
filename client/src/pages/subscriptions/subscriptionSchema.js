@@ -11,6 +11,7 @@ export const subscriptionSchema = z
     plan: selected("Select a plan"),
     tax: z.any(),
     bill_date: z.string().min(1, "Select the bill date"),
+    start_date: z.string().min(1, "Select the start date"),
     discount_type: z.number(),
     // Kept as text in the form and converted when the item is added.
     discount_value: z.string().trim(),
@@ -50,6 +51,7 @@ export const getDefaultValues = (today) => ({
   plan: null,
   tax: null,
   bill_date: today,
+  start_date: "",
   discount_type: DISCOUNT_TYPE.NONE,
   discount_value: "",
 });
