@@ -17,6 +17,7 @@ const {
   findBillRecords,
   completePayment,
   toBill,
+  findSummaryBill,
 } = require("./billStore");
 
 // Every lookup is scoped to the logged-in user's branch and hides soft-deleted
@@ -254,8 +255,33 @@ const completeBillPayment = async (req, res) => {
   }
 };
 
+// GET /api/subscription/summary?bill_no=
+// The full summary bill (branch, totals, member, items, payment) for one bill
+// of the logged-in user's branch. 404 when the bill is not in this branch.
+const getSummaryBill = async (req, res) => {
+  try {
+    const billNo = Number(req.query.bill_no);
+
+    if (!Number.isInteger(billNo) || billNo <= 0) {
+      return errorResponse(res, "Validation failed", 400, [
+        { field: "bill_no", message: "A valid bill number is required" },
+      ]);
+    }
+
+    const bill = await findSummaryBill(req.user.branchId, billNo);
+
+    if (!bill) return errorResponse(res, "Bill not found", 404);
+
+    return successResponse(res, bill, "Summary bill fetched successfully");
+  } catch (error) {
+    console.error("Error fetching summary bill:", error);
+
+    return errorResponse(res, "Internal server error", 500);
+  }
+};
 module.exports = {
   getBillItems,
   addBillItem,
   completeBillPayment,
+  getSummaryBill,
 };

@@ -46,3 +46,13 @@ export const addSubscriptionItem = (payload) =>
 // Response: { success, message, data: { bill_no, payment_id, payments_status } }
 export const completeSubscriptionPayment = (payload) =>
   api.post("/subscription/payment", payload).then((res) => res.data.data);
+
+// GET /api/subscription/summary?bill_no=
+// Everything the summary bill page shows for one bill of the user's branch.
+// Response: { success, message, data: { branch, summary, member, items,
+//             payment, issued_by } } - see SummaryBill.jsx for the full shape.
+// 404 when the bill is not found in this branch.
+export const getSummaryBill = (billNo) =>
+  api
+    .get("/subscription/summary", { params: { bill_no: billNo } })
+    .then((res) => res.data.data);

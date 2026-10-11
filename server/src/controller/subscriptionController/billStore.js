@@ -126,6 +126,148 @@ const toBill = (billNo, items) => ({
   },
 });
 
+const sumOf = (rows, key) =>
+  rows.reduce((total, row) => total + Number(row[key] || 0), 0);
+
+const formatDay = (column) => db.raw(`DATE_FORMAT(${column}, '%Y-%m-%d')`);
+
+// Everything the summary bill page shows for one bill number, scoped to the
+// branch. A bill is one subs_summ row per item, so the header figures are the
+// sum of those rows. Returns null when the bill does not exist.
+const findSummaryBill = async (branchId, billNo) => {
+  const [summRows, items, branch] = await Promise.all([
+    db("subs_summ as s")
+      .leftJoin("users as u", "u.id", "s.created_by")
+      .where({ "s.branch_id": branchId, "s.bill_no": billNo })
+      .whereNull("s.deleted_at")
+      .orderBy("s.id")
+      .select(
+        "s.member_id",
+        "s.subscription_no",
+        formatDay("s.bill_date").as("bill_date"),
+        formatDay("s.start_date").as("start_date"),
+        formatDay("s.end_date").as("end_date"),
+        "s.base_price",
+        "s.discount_type",
+        "s.discount_price",
+        "s.discount_rate",
+        "s.discounted_price",
+        "s.tax_percent",
+        "s.tax_amount",
+        "s.total_price",
+        "u.full_name as issued_by",
+      ),
+    db("subs_items as i")
+      .join("subs_summ as s", "s.id", "i.subs_summ_id")
+      .where({ "s.branch_id": branchId, "s.bill_no": billNo })
+      .whereNull("s.deleted_at")
+      .whereNull("i.deleted_at")
+      .orderBy("i.id")
+      .select(
+        "i.id",
+        "i.item_type",
+        "i.item_name",
+        "i.item_description",
+        "i.quantity",
+        formatDay("i.start_date").as("start_date"),
+        formatDay("i.end_date").as("end_date"),
+        "i.base_price",
+        "i.discount_type",
+        "i.discount_price",
+        "i.discount_rate",
+        "i.discounted_price",
+        "i.tax_percent",
+        "i.tax_amount",
+        "i.total_price",
+      ),
+    db("branches")
+      .where({ id: branchId })
+      .first("name", "logo", "code", "address", "phone", "currency"),
+  ]);
+
+  if (!summRows.length) return null;
+
+  const [first] = summRows;
+
+  const [member, status] = await Promise.all([
+    db("members as m")
+      .leftJoin("users as t", "t.id", "m.assigned_trainer_id")
+      .where({ "m.id": first.member_id, "m.branch_id": branchId })
+      .first(
+        "m.first_name",
+        "m.last_name",
+        "m.member_Id",
+        "m.phone",
+        "m.email",
+        "m.avatar_url",
+        formatDay("m.joined_on").as("joined_on"),
+        "t.full_name as trainer_name",
+      ),
+    // All rows of a bill are updated together, so the newest one speaks for it.
+    db("payments_status as ps")
+      .leftJoin("payments as p", "p.id", "ps.payment_id")
+      .where({ "ps.branch_id": branchId, "ps.subs_billno": String(billNo) })
+      .orderBy("ps.id", "desc")
+      .first("ps.payments_status", "ps.updated_at", "p.payment_name"),
+  ]);
+
+  const discountTypes = [
+    ...new Set(
+      summRows
+        .filter((row) => Number(row.discount_price) > 0)
+        .map((row) => Number(row.discount_type)),
+    ),
+  ];
+  const discountRates = [
+    ...new Set(summRows.map((row) => Number(row.discount_rate || 0))),
+  ];
+  const taxRates = [...new Set(summRows.map((row) => Number(row.tax_percent)))];
+
+  const discounted = sumOf(summRows, "discounted_price");
+  const taxAmount = sumOf(summRows, "tax_amount");
+
+  const summary = {
+    bill_no: billNo,
+    bill_date: first.bill_date,
+    subscription_no: first.subscription_no,
+    // The bill covers the earliest start to the latest end of its items.
+    start_date: summRows.map((row) => row.start_date).sort()[0],
+    end_date: summRows.map((row) => row.end_date).sort().reverse()[0],
+    base_price: sumOf(summRows, "base_price"),
+    // One kind of discount keeps its type (and rate); mixed ones show as a fixed amount.
+    discount_type: discountTypes.length === 1 ? discountTypes[0] : discountTypes.length ? 2 : 0,
+    discount_price: sumOf(summRows, "discount_price"),
+    discount_rate:
+      discountTypes.length === 1 && discountTypes[0] === 1 && discountRates.length === 1
+        ? discountRates[0]
+        : null,
+    discounted_price: discounted,
+    // One tax rate on every item is shown as is; otherwise the effective rate.
+    tax_percent:
+      taxRates.length === 1
+        ? taxRates[0]
+        : discounted
+          ? Math.round((taxAmount / discounted) * 10000) / 100
+          : 0,
+    tax_amount: taxAmount,
+    total_price: sumOf(summRows, "total_price"),
+  };
+
+  const completed = status?.payments_status === "completed";
+
+  return {
+    branch,
+    summary,
+    member: member ?? null,
+    items,
+    payment: {
+      status: status?.payments_status ?? "draft",
+      method: status?.payment_name ?? null,
+      paid_on: completed ? status.updated_at : null,
+    },
+    issued_by: first.issued_by ?? null,
+  };
+};
 module.exports = {
   generateBillNo,
   getItems,
@@ -133,4 +275,5 @@ module.exports = {
   findBillRecords,
   completePayment,
   toBill,
+  findSummaryBill,
 };

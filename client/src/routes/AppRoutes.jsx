@@ -1,4 +1,4 @@
-﻿import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import PublicLayout from "@/layouts/PublicLayout";
 import ProtectedLayout from "@/layouts/ProtectedLayout";
@@ -19,6 +19,7 @@ import { useEffect, useState } from "react";
 import Tax from "@/pages/tax";
 import Plans from "@/pages/plans";
 import Discount from "@/pages/discount";
+import SummaryBillPage from "@/pages/summary-bill";
 
 function AppRoutes() {
   // for offline detection
@@ -46,6 +47,9 @@ function AppRoutes() {
 
         {/* Protected routes */}
         <Route element={<ProtectedLayout />}>
+          {/* Full-page bill (no sidebar) so it prints cleanly: /summary-bill?id=<bill_no> */}
+          <Route path="/summary-bill" element={<SummaryBillPage />} />
+
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/members" element={<Members />} />
