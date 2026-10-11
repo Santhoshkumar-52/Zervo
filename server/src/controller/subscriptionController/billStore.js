@@ -84,6 +84,38 @@ const addItem = (branchId, userId, billNo, item) =>
     return items;
   });
 
+// What is saved for a bill in each of its three tables: the first subs_summ
+// row, the first subs_items row, and the status of every payments_status row.
+const findBillRecords = async (branchId, billNo) => {
+  const [summ, item, statuses] = await Promise.all([
+    db("subs_summ")
+      .where({ branch_id: branchId, bill_no: billNo })
+      .whereNull("deleted_at")
+      .first("id"),
+    db("subs_items as i")
+      .join("subs_summ as s", "s.id", "i.subs_summ_id")
+      .where({ "s.branch_id": branchId, "s.bill_no": billNo })
+      .whereNull("s.deleted_at")
+      .whereNull("i.deleted_at")
+      .first("i.id"),
+    db("payments_status")
+      .where({ branch_id: branchId, subs_billno: String(billNo) })
+      .pluck("payments_status"),
+  ]);
+
+  return { summ, item, statuses };
+};
+
+// Marks every payments_status row of the bill as paid with the given payment.
+const completePayment = (branchId, billNo, paymentId, userId) =>
+  db("payments_status")
+    .where({ branch_id: branchId, subs_billno: String(billNo) })
+    .update({
+      payment_id: paymentId,
+      payments_status: "completed",
+      updated_by: userId,
+    });
+
 // The shape the client table reads.
 const toBill = (billNo, items) => ({
   bill_no: billNo,
@@ -94,4 +126,11 @@ const toBill = (billNo, items) => ({
   },
 });
 
-module.exports = { generateBillNo, getItems, addItem, toBill };
+module.exports = {
+  generateBillNo,
+  getItems,
+  addItem,
+  findBillRecords,
+  completePayment,
+  toBill,
+};

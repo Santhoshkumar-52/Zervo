@@ -59,6 +59,14 @@ const addItemSchema = z
     }
   });
 
+// What the client sends to complete the payment of a bill. All three are
+// required.
+const completePaymentSchema = z.object({
+  branch_id: id("Branch"),
+  payment_id: id("Payment"),
+  bill_no: id("Bill no"),
+});
+
 const formatZodError = (error) =>
   error.issues.map((issue) => ({
     field: issue.path.join(".") || "body",
@@ -67,5 +75,6 @@ const formatZodError = (error) =>
 
 module.exports = {
   addItemSchema,
+  completePaymentSchema,
   formatZodError,
 };

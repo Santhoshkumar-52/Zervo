@@ -5,8 +5,19 @@ const {
   calculateTotals,
   getEndDate,
 } = require("../../utils/billing");
-const { addItemSchema, formatZodError } = require("./schema");
-const { generateBillNo, getItems, addItem, toBill } = require("./billStore");
+const {
+  addItemSchema,
+  completePaymentSchema,
+  formatZodError,
+} = require("./schema");
+const {
+  generateBillNo,
+  getItems,
+  addItem,
+  findBillRecords,
+  completePayment,
+  toBill,
+} = require("./billStore");
 
 // Every lookup is scoped to the logged-in user's branch and hides soft-deleted
 // rows, so a client cannot bill against another branch's member, plan or tax.
@@ -29,6 +40,13 @@ const findTax = (id, branchId) =>
     .where({ id, branch_id: branchId, is_active: true })
     .whereNull("deleted_at")
     .select("id", "name", "rate")
+    .first();
+
+const findPayment = (id, branchId) =>
+  db("payments")
+    .where({ id, branch_id: branchId, is_active: true })
+    .whereNull("deleted_at")
+    .select("id")
     .first();
 
 // GET /api/subscription/items?bill_no=
@@ -171,7 +189,73 @@ const addBillItem = async (req, res) => {
   }
 };
 
+// Logs why the payment was refused and sends the same message to the client.
+const rejectPayment = (res, message, status) => {
+  console.error("Error completing payment:", message);
+
+  return errorResponse(res, message, status);
+};
+
+// POST /api/subscription/payment
+// body: { branch_id, payment_id, bill_no } (all required)
+// The bill must exist in subs_summ, subs_items and payments_status and must not
+// be completed yet. Then its payments_status rows are marked completed with the
+// payment_id.
+const completeBillPayment = async (req, res) => {
+  try {
+    const parsed = completePaymentSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+      return errorResponse(
+        res,
+        "Validation failed",
+        400,
+        formatZodError(parsed.error),
+      );
+    }
+
+    const { branch_id: branchId, payment_id: paymentId, bill_no: billNo } =
+      parsed.data;
+    const { userId } = req.user;
+
+    const { summ, item, statuses } = await findBillRecords(branchId, billNo);
+
+    if (!summ) {
+      return rejectPayment(res, "Bill not found in subscription summary", 404);
+    }
+
+    if (!item) {
+      return rejectPayment(res, "Bill has no subscription items", 404);
+    }
+
+    if (!statuses.length) {
+      return rejectPayment(res, "Bill has no payment status", 404);
+    }
+
+    if (statuses.includes("completed")) {
+      return rejectPayment(res, "Payment for this bill is already completed", 409);
+    }
+
+    if (!(await findPayment(paymentId, branchId))) {
+      return rejectPayment(res, "Payment method not found or inactive", 404);
+    }
+
+    await completePayment(branchId, billNo, paymentId, userId);
+
+    return successResponse(
+      res,
+      { bill_no: billNo, payment_id: paymentId, payments_status: "completed" },
+      "Payment completed successfully",
+    );
+  } catch (error) {
+    console.error("Error completing payment:", error);
+
+    return errorResponse(res, "Internal server error", 500);
+  }
+};
+
 module.exports = {
   getBillItems,
   addBillItem,
+  completeBillPayment,
 };

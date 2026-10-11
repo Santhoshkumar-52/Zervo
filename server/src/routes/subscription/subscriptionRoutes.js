@@ -3,6 +3,7 @@ const express = require("express");
 const {
   getBillItems,
   addBillItem,
+  completeBillPayment,
 } = require("../../controller/subscriptionController/controller");
 
 const router = express.Router();
@@ -15,7 +16,10 @@ const router = express.Router();
 //      body: { bill_no?, member_id, plan_id, tax_id | null, discount_type,
 //              discount_value, bill_date, start_date }
 //      No bill_no starts a new bill; send the returned bill_no to add more items.
+// POST /api/subscription/payment -> mark the bill's payment as completed
+//      body: { branch_id, payment_id, bill_no } (all required)
 router.get("/items", getBillItems);
 router.post("/items", addBillItem);
+router.post("/payment", completeBillPayment);
 
 module.exports = router;
