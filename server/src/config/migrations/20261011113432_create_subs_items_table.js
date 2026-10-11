@@ -16,8 +16,13 @@ exports.up = async function (knex) {
     table.string("item_type", 30).notNullable().defaultTo("membership");
     table.integer("plan_id").unsigned().nullable();
     table.string("item_name", 150).notNullable();
+    
     table.string("item_description", 500).nullable();
     table.integer("quantity").unsigned().notNullable().defaultTo(1);
+
+    // Subscription period (end date = start date + plan duration_days - 1)
+    table.date("start_date").nullable();
+    table.date("end_date").nullable();
 
     // Pricing details (paise)
     table.bigInteger("base_price").unsigned().notNullable().defaultTo(0);

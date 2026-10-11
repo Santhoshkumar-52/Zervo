@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Percent, SearchX } from "lucide-react";
 
 import AppAlertDialog from "@/components/additonal/AlertDialog";
 import DataTable from "@/components/additonal/Datatable/DataTable";
@@ -6,6 +7,19 @@ import { useTaxStore } from "@/store/tax";
 
 import EditTaxDialog from "./EditTaxDialog";
 import { getTaxColumns } from "./TaxColumns";
+
+// Shown when the list is empty: nothing exists yet, or the search found nothing.
+const EMPTY_STATE = {
+  icon: Percent,
+  title: "No taxes yet",
+  description: "Tax rates you create will show up here.",
+};
+
+const getNoMatchState = (term) => ({
+  icon: SearchX,
+  title: "No taxes found",
+  description: `Nothing matches "${term}". Try a different tax name or description.`,
+});
 
 const SEARCH_DEBOUNCE_MS = 400;
 
@@ -113,6 +127,7 @@ function TaxList() {
         onGlobalFilterChange={setSearch}
         isLoading={isLoading}
         isFetching={isFetching}
+        emptyState={appliedSearch ? getNoMatchState(appliedSearch) : EMPTY_STATE}
         searchPlaceholder="Search by tax name or description..."
       />
 

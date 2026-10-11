@@ -1,9 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import {
-  addSubscriptionItem,
-  getSubscriptionItems,
-} from "@/api/subscription/subscriptionApi";
+// import { getSubscriptionItems } from "@/api/subscription/subscriptionApi";
+import { addSubscriptionItem } from "@/api/subscription/subscriptionApi";
 import { notifyError } from "@/utils/notification";
 
 const BILL_KEY = ["subscription-bill"];
@@ -21,9 +19,13 @@ const EMPTY_BILL = {
 export function useSubscriptionBill() {
   const queryClient = useQueryClient();
 
+  // TODO: bring the fetch back once the bill is saved in the database.
+  // For now the bill is not loaded again after a page reset, so it starts
+  // empty and only fills as items are added (addItem sets the cache below).
   const { data: bill = EMPTY_BILL, isLoading } = useQuery({
     queryKey: BILL_KEY,
-    queryFn: getSubscriptionItems,
+    // queryFn: getSubscriptionItems,
+    enabled: false,
   });
 
   const { mutateAsync: addItem } = useMutation({

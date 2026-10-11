@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { ClipboardList, SearchX } from "lucide-react";
 
 import AppAlertDialog from "@/components/additonal/AlertDialog";
 import DataTable from "@/components/additonal/Datatable/DataTable";
@@ -6,6 +7,19 @@ import { usePlanStore } from "@/store/plan";
 
 import EditPlanDialog from "./EditPlanDialog";
 import { getPlanColumns } from "./PlanColumns";
+
+// Shown when the list is empty: nothing exists yet, or the search found nothing.
+const EMPTY_STATE = {
+  icon: ClipboardList,
+  title: "No plans yet",
+  description: "Membership plans you create will show up here.",
+};
+
+const getNoMatchState = (term) => ({
+  icon: SearchX,
+  title: "No plans found",
+  description: `Nothing matches "${term}". Try a different plan name.`,
+});
 
 const SEARCH_DEBOUNCE_MS = 400;
 
@@ -113,6 +127,7 @@ function PlansList() {
         onGlobalFilterChange={setSearch}
         isLoading={isLoading}
         isFetching={isFetching}
+        emptyState={appliedSearch ? getNoMatchState(appliedSearch) : EMPTY_STATE}
         searchPlaceholder="Search by plan name..."
       />
 

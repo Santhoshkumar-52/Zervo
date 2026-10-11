@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { UserCog, SearchX } from "lucide-react";
 
 import AppAlertDialog from "@/components/additonal/AlertDialog";
 import DataTable from "@/components/additonal/Datatable/DataTable";
@@ -6,6 +7,19 @@ import { useStaffStore } from "@/store/staff";
 
 import EditStaffDialog from "./EditStaffDialog";
 import { getStaffColumns } from "./StaffColumns";
+
+// Shown when the list is empty: nothing exists yet, or the search found nothing.
+const EMPTY_STATE = {
+  icon: UserCog,
+  title: "No staff yet",
+  description: "Staff you add will show up here.",
+};
+
+const getNoMatchState = (term) => ({
+  icon: SearchX,
+  title: "No staff found",
+  description: `Nothing matches "${term}". Try a different name, email or staff ID.`,
+});
 
 const SEARCH_DEBOUNCE_MS = 400;
 
@@ -121,6 +135,7 @@ function StaffList() {
         onGlobalFilterChange={setSearch}
         isLoading={isLoading}
         isFetching={isFetching}
+        emptyState={appliedSearch ? getNoMatchState(appliedSearch) : EMPTY_STATE}
         searchPlaceholder="Search by name, email or staff ID..."
       />
 

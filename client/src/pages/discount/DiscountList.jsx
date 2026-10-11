@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Tag, SearchX } from "lucide-react";
 
 import AppAlertDialog from "@/components/additonal/AlertDialog";
 import DataTable from "@/components/additonal/Datatable/DataTable";
@@ -6,6 +7,19 @@ import { useDiscountStore } from "@/store/discount";
 
 import { getDiscountColumns } from "./DiscountColumns";
 import EditDiscountDialog from "./EditDiscountDialog";
+
+// Shown when the list is empty: nothing exists yet, or the search found nothing.
+const EMPTY_STATE = {
+  icon: Tag,
+  title: "No discounts yet",
+  description: "Discounts you create will show up here.",
+};
+
+const getNoMatchState = (term) => ({
+  icon: SearchX,
+  title: "No discounts found",
+  description: `Nothing matches "${term}". Try a different discount name or description.`,
+});
 
 const SEARCH_DEBOUNCE_MS = 400;
 
@@ -122,6 +136,7 @@ function DiscountList() {
         onGlobalFilterChange={setSearch}
         isLoading={isLoading}
         isFetching={isFetching}
+        emptyState={appliedSearch ? getNoMatchState(appliedSearch) : EMPTY_STATE}
         searchPlaceholder="Search by discount name or description..."
       />
 

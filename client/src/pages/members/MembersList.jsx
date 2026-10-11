@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Users, SearchX } from "lucide-react";
 
 import AppAlertDialog from "@/components/additonal/AlertDialog";
 import DataTable from "@/components/additonal/Datatable/DataTable";
@@ -6,6 +7,19 @@ import { useMemberStore } from "@/store/member";
 
 import EditMemberDialog from "./EditMemberDialog";
 import { getMembersColumns } from "./MembersColumns";
+
+// Shown when the list is empty: nothing exists yet, or the search found nothing.
+const EMPTY_STATE = {
+  icon: Users,
+  title: "No members yet",
+  description: "Members you add will show up here.",
+};
+
+const getNoMatchState = (term) => ({
+  icon: SearchX,
+  title: "No members found",
+  description: `Nothing matches "${term}". Try a different name, email, phone or trainer.`,
+});
 
 const SEARCH_DEBOUNCE_MS = 400;
 
@@ -121,6 +135,7 @@ function MembersList() {
         onGlobalFilterChange={setSearch}
         isLoading={isLoading}
         isFetching={isFetching}
+        emptyState={appliedSearch ? getNoMatchState(appliedSearch) : EMPTY_STATE}
         searchPlaceholder="Search by name, email, phone or trainer..."
       />
 

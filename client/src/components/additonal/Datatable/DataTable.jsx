@@ -16,6 +16,7 @@ import {
 } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
 
+import { EmptyState } from "@/pages/public/EmptyState";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -85,6 +86,10 @@ function SortIcon({ direction }) {
  * is loading, or is empty. When a page has more rows than fit (e.g. a page
  * size of 20 or 50) the table scrolls inside itself and the header stays put.
  *
+ * Empty state: when there are no rows, `emptyState` (the props of EmptyState:
+ * icon, title, description, button, redirect, buttonText) is shown inside the
+ * table. Each page sends its own wording; without it the table says "No results.".
+ *
  * Rows per page: the pagination bar has a page-size selector built from
  * `pageSizeOptions`. Changing it goes through `onPaginationChange` in server
  * mode, so the parent just refetches with the new `pageSize`.
@@ -99,6 +104,7 @@ function DataTable({
   pageSize = 10,
   pageSizeOptions = DEFAULT_PAGE_SIZE_OPTIONS,
   fixedRows = 10,
+  emptyState,
   getRowId,
 
   // server-side mode
@@ -246,9 +252,13 @@ function DataTable({
                 <TableCell
                   colSpan={visibleColumnCount}
                   style={{ height: `${fixedRows * ROW_HEIGHT_REM}rem` }}
-                  className="text-center text-muted-foreground"
+                  className="p-0 text-center text-muted-foreground"
                 >
-                  No results.
+                  {emptyState ? (
+                    <EmptyState {...emptyState} className="h-full min-h-0 p-4" />
+                  ) : (
+                    "No results."
+                  )}
                 </TableCell>
               </TableRow>
             )}

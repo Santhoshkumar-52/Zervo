@@ -8,6 +8,7 @@ const staffRoutes = require("./staff/staffRoutes");
 const taxRoutes = require("./tax/taxRoutes");
 const planRoutes = require("./plan/planRoutes");
 const discountRoutes = require("./discount/discountRoutes");
+const subscriptionRoutes = require("./subscription/subscriptionRoutes");
 
 const router = express.Router();
 
@@ -19,11 +20,11 @@ router.use("/staff", tokenVerify, staffRoutes);
 router.use("/tax", tokenVerify, taxRoutes);
 router.use("/plan", tokenVerify, planRoutes);
 router.use("/discount", tokenVerify, discountRoutes);
+router.use("/subscription", tokenVerify, subscriptionRoutes);
 
 // Future feature routes
 // router.use("/users", userRoutes);
 // router.use("/members", memberRoutes);
-// router.use("/subscriptions", subscriptionRoutes);
 // router.use("/payments", paymentRoutes);
 // router.use("/attendance", attendanceRoutes);
 // router.use("/dashboard", dashboardRoutes);
