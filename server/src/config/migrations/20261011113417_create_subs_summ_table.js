@@ -10,6 +10,7 @@ exports.up = async function (knex) {
   await knex.schema.createTable("subs_summ", (table) => {
     table.increments("id").primary();
     table.integer("bill_no").unsigned().notNullable();
+    table.date("bill_date").notNullable();
     table.integer("branch_id").unsigned().notNullable();
 
     // Member and branch details

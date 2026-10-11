@@ -17,9 +17,11 @@ const dateOnly = (label) =>
 
 // What the client sends for one bill item. The amounts are NOT accepted: the
 // server works them out from the plan, tax and discount below.
+// bill_no is left out for the first item of a bill and sent for the rest.
 // branch_id and audit columns come from the logged-in user.
 const addItemSchema = z
   .object({
+    bill_no: id("Bill no").optional(),
     member_id: id("Member"),
     plan_id: id("Plan"),
     tax_id: id("Tax").nullable().optional(),

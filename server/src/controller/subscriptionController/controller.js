@@ -1,5 +1,3 @@
-const crypto = require("crypto");
-
 const db = require("../../config/knexfile");
 const { successResponse, errorResponse } = require("../../utils/response");
 const {
@@ -8,7 +6,7 @@ const {
   getEndDate,
 } = require("../../utils/billing");
 const { addItemSchema, formatZodError } = require("./schema");
-const { getItems, addItem, toBill } = require("./billStore");
+const { generateBillNo, getItems, addItem, toBill } = require("./billStore");
 
 // Every lookup is scoped to the logged-in user's branch and hides soft-deleted
 // rows, so a client cannot bill against another branch's member, plan or tax.
@@ -33,15 +31,17 @@ const findTax = (id, branchId) =>
     .select("id", "name", "rate")
     .first();
 
-// GET /api/subscription/items
-// -> { items, totals } for the bill the logged-in user is building.
+// GET /api/subscription/items?bill_no=
+// -> { bill_no, items, totals } for that bill (empty when no bill_no is sent).
 const getBillItems = async (req, res) => {
   try {
-    const { branchId, userId } = req.user;
+    const { branchId } = req.user;
+    const billNo = Number(req.query.bill_no) || null;
+    const items = billNo ? await getItems(branchId, billNo) : [];
 
     return successResponse(
       res,
-      toBill(getItems(branchId, userId)),
+      toBill(billNo, items),
       "Bill fetched successfully",
     );
   } catch (error) {
@@ -52,10 +52,12 @@ const getBillItems = async (req, res) => {
 };
 
 // POST /api/subscription/items
-// body: { member_id, plan_id, tax_id | null, discount_type, discount_value,
-//         bill_date, start_date }
-// The server looks the plan and tax up, works out the discount, tax, total and
-// end date itself, adds the item and returns the whole bill: { items, totals }.
+// body: { bill_no?, member_id, plan_id, tax_id | null, discount_type,
+//         discount_value, bill_date, start_date }
+// Without bill_no a new bill number is generated; with it the item is added to
+// that bill. The server looks the plan and tax up, works out the discount, tax,
+// total and end date itself, saves the item and returns the whole bill:
+// { bill_no, items, totals }.
 const addBillItem = async (req, res) => {
   try {
     const parsed = addItemSchema.safeParse(req.body);
@@ -71,10 +73,17 @@ const addBillItem = async (req, res) => {
 
     const { branchId, userId } = req.user;
     const data = parsed.data;
+    const billNo = data.bill_no ?? generateBillNo();
 
     // Member and bill date belong to the whole bill: once it has items, every
     // new item must use the same ones.
-    const [firstItem] = getItems(branchId, userId);
+    const billItems = data.bill_no ? await getItems(branchId, billNo) : [];
+
+    if (data.bill_no && !billItems.length) {
+      return errorResponse(res, "Bill not found", 404);
+    }
+
+    const [firstItem] = billItems;
 
     if (firstItem && firstItem.member_id !== data.member_id) {
       return errorResponse(
@@ -131,8 +140,7 @@ const addBillItem = async (req, res) => {
       taxRate: tax?.rate,
     });
 
-    const items = addItem(branchId, userId, {
-      id: crypto.randomUUID(),
+    const items = await addItem(branchId, userId, billNo, {
       member_id: data.member_id,
       bill_date: data.bill_date,
       plan_id: plan.id,
@@ -141,15 +149,21 @@ const addBillItem = async (req, res) => {
       end_date: getEndDate(data.start_date, plan.duration_days),
       price_minor: amounts.priceMinor,
       discount_type: data.discount_type,
+      discount_rate:
+        data.discount_type === DISCOUNT_TYPE.PERCENTAGE ? discountValue : null,
       discount_minor: amounts.discountMinor,
-      tax_id: tax?.id ?? null,
-      tax_name: tax?.name ?? null,
+      taxable_minor: amounts.taxableMinor,
       tax_rate: Number(tax?.rate ?? 0),
       tax_minor: amounts.taxMinor,
       total_minor: amounts.totalMinor,
     });
 
-    return successResponse(res, toBill(items), "Item added to the bill", 201);
+    return successResponse(
+      res,
+      toBill(billNo, items),
+      "Item added to the bill",
+      201,
+    );
   } catch (error) {
     console.error("Error adding bill item:", error);
 

@@ -6,7 +6,9 @@ exports.up = async function (knex) {
     table.string("subs_billno", 50).notNullable();
 
     table.integer("branch_id").unsigned().notNullable();
-    table.integer("payment_id").unsigned().notNullable();
+
+    // Set when the bill is paid; empty while the bill is a draft
+    table.integer("payment_id").unsigned().nullable();
 
     table.bigInteger("total_price").unsigned().notNullable();
 
@@ -17,7 +19,7 @@ exports.up = async function (knex) {
         "cancelled",
         "completed",
       ])
-      .notNullable()
+      .nullable()
       .defaultTo("draft");
 
     // Audit fields
