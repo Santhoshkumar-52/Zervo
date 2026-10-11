@@ -4,6 +4,7 @@ import { DISCOUNT_TYPE } from "@/utils/billing";
 
 // Bill shape (what the server sends back):
 //   {
+//     bill_no,
 //     items: [{ id, plan_name, start_date, end_date, price_minor,
 //               discount_minor, tax_name, tax_rate, tax_minor, total_minor }],
 //     totals: { item_count, grand_total_minor }
@@ -23,15 +24,25 @@ const DISCOUNT_TYPES = [
 
 export const getDiscountTypes = async () => DISCOUNT_TYPES;
 
-// GET /api/subscription/items
-// Response: { success, message, data: { items, totals } }
-export const getSubscriptionItems = () =>
-  api.get("/subscription/items").then((res) => res.data.data);
+// GET /api/subscription/items?bill_no=
+// Response: { success, message, data: { bill_no, items, totals } }
+export const getSubscriptionItems = (billNo) =>
+  api
+    .get("/subscription/items", { params: { bill_no: billNo } })
+    .then((res) => res.data.data);
 
 // POST /api/subscription/items
-// body: { member_id, plan_id, tax_id | null, discount_type, discount_value,
-//         bill_date, start_date }
+// body: { bill_no?, member_id, plan_id, tax_id | null, discount_type,
+//         discount_value, bill_date, start_date }
+// Leave bill_no out for the first item; send the bill's bill_no for the rest.
 // The server calculates the amounts, adds the item and returns the whole bill.
-// Response: { success, message, data: { items, totals } }
+// Response: { success, message, data: { bill_no, items, totals } }
 export const addSubscriptionItem = (payload) =>
   api.post("/subscription/items", payload).then((res) => res.data.data);
+
+// POST /api/subscription/payment
+// body: { branch_id, payment_id, bill_no } (all required)
+// Marks the bill's payment as completed.
+// Response: { success, message, data: { bill_no, payment_id, payments_status } }
+export const completeSubscriptionPayment = (payload) =>
+  api.post("/subscription/payment", payload).then((res) => res.data.data);

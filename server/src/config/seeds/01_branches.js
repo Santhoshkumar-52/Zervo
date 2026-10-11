@@ -12,6 +12,9 @@ export async function seed(knex) {
       phone: "04412345678",
       created_at: new Date(),
       updated_at: new Date(),
+      subbill_url: "https://example.com/",
+      logo: "https://res.cloudinary.com/samxg4vp/image/upload/v1791735500/Zervo_Futuristic_Fitness_Logo_kpsxpd.png",
+      currency: "₹",
     },
     {
       name: "Anna Nagar Branch",
@@ -20,6 +23,9 @@ export async function seed(knex) {
       phone: "04412345679",
       created_at: new Date(),
       updated_at: new Date(),
+      subbill_url: "https://example.com/",
+      logo: "https://res.cloudinary.com/samxg4vp/image/upload/v1791735500/Zervo_Futuristic_Fitness_Logo_kpsxpd.png",
+      currency: "₹",
     },
   ]);
 }

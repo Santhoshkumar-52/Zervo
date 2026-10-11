@@ -15,6 +15,7 @@ import { formatMoney } from "@/utils/currency";
 // The payment method dropdown is enabled once the bill has at least one item.
 // `paymentMethods` is `[{ value, label }]`; `paymentMethodId` is the chosen
 // value (or null) and `onPaymentMethodChange(value)` reports a new choice.
+// `onPay` runs when Pay is clicked; Pay is disabled while `isPaying`.
 function SubscriptionFooter({
   itemCount,
   grandTotalMinor,
@@ -23,6 +24,7 @@ function SubscriptionFooter({
   onPaymentMethodChange,
   isPaymentMethodsLoading = false,
   onPay,
+  isPaying = false,
 }) {
   const hasPaymentMethods = paymentMethods.length > 0;
 
@@ -66,8 +68,7 @@ function SubscriptionFooter({
           </span>
         </div>
 
-        {/* Payment is not wired up yet, so there is no handler by default. */}
-        <Button onClick={onPay} disabled={itemCount === 0}>
+        <Button onClick={onPay} disabled={itemCount === 0 || isPaying}>
           Pay
         </Button>
       </div>

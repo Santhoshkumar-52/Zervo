@@ -4,6 +4,7 @@ export async function up(knex) {
 
     // Mandatory
     table.string("name", 150).notNullable();
+    table.string("logo", 2083).notNullable();
 
     // Mandatory and unique
     table.string("code", 50).notNullable().unique();
@@ -13,6 +14,8 @@ export async function up(knex) {
 
     // Optional
     table.string("phone", 20).nullable();
+    table.string("currency", 20).notNullable().defaultTo("₹");
+    table.string("subbill_url", 2083).notNullable();
 
     // UTC timestamps
     table.dateTime("created_at").notNullable();
