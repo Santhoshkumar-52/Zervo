@@ -9,6 +9,7 @@ const taxRoutes = require("./tax/taxRoutes");
 const planRoutes = require("./plan/planRoutes");
 const discountRoutes = require("./discount/discountRoutes");
 const subscriptionRoutes = require("./subscription/subscriptionRoutes");
+const paymentRoutes = require("./payment/paymentRoutes");
 
 const router = express.Router();
 
@@ -21,11 +22,11 @@ router.use("/tax", tokenVerify, taxRoutes);
 router.use("/plan", tokenVerify, planRoutes);
 router.use("/discount", tokenVerify, discountRoutes);
 router.use("/subscription", tokenVerify, subscriptionRoutes);
+router.use("/payment", tokenVerify, paymentRoutes);
 
 // Future feature routes
 // router.use("/users", userRoutes);
 // router.use("/members", memberRoutes);
-// router.use("/payments", paymentRoutes);
 // router.use("/attendance", attendanceRoutes);
 // router.use("/dashboard", dashboardRoutes);
 
