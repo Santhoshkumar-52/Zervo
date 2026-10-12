@@ -67,6 +67,18 @@ const completePaymentSchema = z.object({
   bill_no: id("Bill no"),
 });
 
+// What the client sends to list the bills of a date range (bill date, both
+// ends included). Page, limit and search travel in the query string.
+const listSubscriptionsSchema = z
+  .object({
+    start_date: dateOnly("Start date"),
+    end_date: dateOnly("End date"),
+  })
+  .refine((data) => data.start_date <= data.end_date, {
+    path: ["end_date"],
+    message: "End date cannot be before the start date",
+  });
+
 const formatZodError = (error) =>
   error.issues.map((issue) => ({
     field: issue.path.join(".") || "body",
@@ -76,5 +88,6 @@ const formatZodError = (error) =>
 module.exports = {
   addItemSchema,
   completePaymentSchema,
+  listSubscriptionsSchema,
   formatZodError,
 };

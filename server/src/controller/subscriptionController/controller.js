@@ -8,6 +8,7 @@ const {
 const {
   addItemSchema,
   completePaymentSchema,
+  listSubscriptionsSchema,
   formatZodError,
 } = require("./schema");
 const {
@@ -18,6 +19,7 @@ const {
   completePayment,
   toBill,
   findSummaryBill,
+  findSubscriptionList,
 } = require("./billStore");
 
 // Every lookup is scoped to the logged-in user's branch and hides soft-deleted
@@ -279,9 +281,77 @@ const getSummaryBill = async (req, res) => {
     return errorResponse(res, "Internal server error", 500);
   }
 };
+
+// GET /api/subscription/list?page&limit&search
+// body: { start_date, end_date } (YYYY-MM-DD, compared with the bill date,
+// both days included). Clients that cannot send a body on GET (browser fetch,
+// axios) may send start_date and end_date in the query string instead.
+// Lists the logged-in user's branch bills, one row per
+// bill, newest first. page defaults to 1 and limit to 10 (max 100); search
+// matches the bill no, the member's member_Id or the member's phone.
+const getSubscriptionList = async (req, res) => {
+  try {
+    const parsed = listSubscriptionsSchema.safeParse({
+      start_date: req.body?.start_date ?? req.query.start_date,
+      end_date: req.body?.end_date ?? req.query.end_date,
+    });
+
+    if (!parsed.success) {
+      return errorResponse(
+        res,
+        "Validation failed",
+        400,
+        formatZodError(parsed.error),
+      );
+    }
+
+    const { branchId } = req.user;
+
+    const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
+
+    const limit = Math.min(
+      Math.max(Number.parseInt(req.query.limit, 10) || 10, 1),
+      100,
+    );
+
+    const search = req.query.search?.trim() || "";
+
+    const { bills, total } = await findSubscriptionList(branchId, {
+      startDate: parsed.data.start_date,
+      endDate: parsed.data.end_date,
+      search,
+      page,
+      limit,
+    });
+
+    const totalPages = Math.ceil(total / limit);
+
+    return successResponse(
+      res,
+      {
+        bills,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        },
+      },
+      "Subscriptions fetched successfully",
+    );
+  } catch (error) {
+    console.error("Error fetching subscriptions:", error);
+
+    return errorResponse(res, "Internal server error", 500);
+  }
+};
+
 module.exports = {
   getBillItems,
   addBillItem,
   completeBillPayment,
   getSummaryBill,
+  getSubscriptionList,
 };

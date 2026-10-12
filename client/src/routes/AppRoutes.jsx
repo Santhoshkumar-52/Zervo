@@ -11,7 +11,9 @@ import Staff from "@/pages/staff/index";
 import Subscriptions from "@/pages/subscriptions/index";
 import Payments from "@/pages/payments/index";
 import Attendance from "@/pages/attendance/index";
-import Reports from "@/pages/reports/index";
+import SubscriptionsReport from "@/pages/reports/SubscriptionsReport";
+import AttendanceReport from "@/pages/reports/AttendanceReport";
+import BalanceReport from "@/pages/reports/BalanceReport";
 import Setting from "@/pages/settings/index";
 import NotFound from "@/pages/public/NotFound";
 import Offline from "@/pages/public/Offline";
@@ -57,7 +59,10 @@ function AppRoutes() {
             <Route path="/subscriptions" element={<Subscriptions />} />
             <Route path="/payments" element={<Payments />} />
             <Route path="/attendance" element={<Attendance />} />
-            <Route path="/reports" element={<Reports />} />
+            <Route path="/reports" element={<Navigate to="/reports/subscriptions" replace />} />
+            <Route path="/reports/subscriptions" element={<SubscriptionsReport />} />
+            <Route path="/reports/attendance" element={<AttendanceReport />} />
+            <Route path="/reports/balance" element={<BalanceReport />} />
             <Route path="/settings" element={<Setting />} />
             <Route path="/plans" element={<Plans />} />
             <Route path="/tax" element={<Tax />} />

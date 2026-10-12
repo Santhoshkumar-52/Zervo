@@ -1,9 +1,12 @@
-﻿import { Link, useLocation } from "react-router-dom";
+import { useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 import {
   BarChart3,
-  ChevronDown,
+  CalendarCheck,
+  ChevronRight,
   CreditCard,
   Dumbbell,
+  FileBarChart,
   LayoutDashboard,
   LogOut,
   Percent,
@@ -12,6 +15,7 @@ import {
   UserCheck,
   UserCog,
   Users,
+  Wallet,
 } from "lucide-react";
 
 import {
@@ -66,11 +70,6 @@ const mainNavigation = [
     url: "/attendance",
     icon: UserCheck,
   },
-  {
-    title: "Reports",
-    url: "/reports",
-    icon: BarChart3,
-  },
 ];
 
 const setupNavigation = [
@@ -91,6 +90,24 @@ const setupNavigation = [
   },
 ];
 
+const reportNavigation = [
+  {
+    title: "Subscriptions",
+    url: "/reports/subscriptions",
+    icon: FileBarChart,
+  },
+  {
+    title: "Attendance",
+    url: "/reports/attendance",
+    icon: CalendarCheck,
+  },
+  {
+    title: "Balance",
+    url: "/reports/balance",
+    icon: Wallet,
+  },
+];
+
 const settingsNavigation = [
   {
     title: "Settings",
@@ -101,6 +118,8 @@ const settingsNavigation = [
 
 export default function AppSidebar() {
   const location = useLocation();
+  const [reportsOpen, setReportsOpen] = useState(false);
+  const [setupOpen, setSetupOpen] = useState(false);
 
   const { logout } = useAuthStore.getState();
 
@@ -111,6 +130,9 @@ export default function AppSidebar() {
 
     return location.pathname.startsWith(url);
   };
+
+  // Keep Reports active on any /reports/... page
+  const isReportsActive = location.pathname.startsWith("/reports");
 
   // Keep Setup active whenever one of its child pages is active
   const isSetupActive = setupNavigation.some((item) =>
@@ -173,6 +195,57 @@ export default function AppSidebar() {
                   </SidebarMenuItem>
                 );
               })}
+              <SidebarMenuItem>
+                <Popover open={reportsOpen} onOpenChange={setReportsOpen}>
+                  <PopoverTrigger
+                    render={
+                      <SidebarMenuButton
+                        isActive={isReportsActive}
+                        tooltip="Reports"
+                        className="h-10 px-3"
+                      />
+                    }
+                  >
+                    <BarChart3 className="size-4" />
+
+                    <span className="flex-1 text-left">Reports</span>
+
+                    <ChevronRight className="size-4 shrink-0" />
+                  </PopoverTrigger>
+
+                  <PopoverContent
+                    side="right"
+                    align="start"
+                    sideOffset={8}
+                    className="w-48 gap-0 p-1"
+                  >
+                    <nav aria-label="Reports" className="flex flex-col gap-1">
+                      {reportNavigation.map((item) => {
+                        const Icon = item.icon;
+                        const active = isActive(item.url);
+
+                        return (
+                          <Link
+                            key={item.title}
+                            to={item.url}
+                            aria-current={active ? "page" : undefined}
+                            onClick={() => setReportsOpen(false)}
+                            className={`flex h-9 items-center gap-2 rounded-md px-3 text-sm transition-colors ${
+                              active
+                                ? "bg-accent text-accent-foreground"
+                                : "hover:bg-accent hover:text-accent-foreground"
+                            }`}
+                          >
+                            <Icon className="size-4" />
+
+                            <span>{item.title}</span>
+                          </Link>
+                        );
+                      })}
+                    </nav>
+                  </PopoverContent>
+                </Popover>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -186,28 +259,30 @@ export default function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu className="gap-1">
               <SidebarMenuItem>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <SidebarMenuButton
-                      isActive={isSetupActive}
-                      tooltip="Setup"
-                      className="h-10 px-3 cursor-pointer"
-                    >
-                      <Settings className="size-4" />
+                <Popover open={setupOpen} onOpenChange={setSetupOpen}>
+                  <PopoverTrigger
+                    render={
+                      <SidebarMenuButton
+                        isActive={isSetupActive}
+                        tooltip="Setup"
+                        className="h-10 px-3"
+                      />
+                    }
+                  >
+                    <Settings className="size-4" />
 
-                      <span className="flex-1 text-left">Setup</span>
+                    <span className="flex-1 text-left">Setup</span>
 
-                      <ChevronDown className="size-4 shrink-0 transition-transform" />
-                    </SidebarMenuButton>
+                    <ChevronRight className="size-4 shrink-0" />
                   </PopoverTrigger>
 
                   <PopoverContent
                     side="right"
                     align="start"
                     sideOffset={8}
-                    className="w-full p-1"
+                    className="w-48 gap-0 p-1"
                   >
-                    <div className="flex flex-col gap-1">
+                    <nav aria-label="Setup" className="flex flex-col gap-1">
                       {setupNavigation.map((item) => {
                         const Icon = item.icon;
                         const active = isActive(item.url);
@@ -216,6 +291,8 @@ export default function AppSidebar() {
                           <Link
                             key={item.title}
                             to={item.url}
+                            aria-current={active ? "page" : undefined}
+                            onClick={() => setSetupOpen(false)}
                             className={`flex h-9 items-center gap-2 rounded-md px-3 text-sm transition-colors ${
                               active
                                 ? "bg-accent text-accent-foreground"
@@ -228,11 +305,10 @@ export default function AppSidebar() {
                           </Link>
                         );
                       })}
-                    </div>
+                    </nav>
                   </PopoverContent>
                 </Popover>
-              </SidebarMenuItem>
-            </SidebarMenu>
+              </SidebarMenuItem>            </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 

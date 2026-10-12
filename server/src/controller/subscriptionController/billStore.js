@@ -268,6 +268,121 @@ const findSummaryBill = async (branchId, billNo) => {
     issued_by: first.issued_by ?? null,
   };
 };
+
+// One page of the bills whose bill date falls between startDate and endDate
+// (both included), newest first. A bill is one subs_summ row per item, so the
+// rows are grouped by bill_no. Search matches the bill no, the member's
+// member_Id and the member's phone. Scoped to the branch.
+// Returns { bills, total } where total counts every matching bill.
+const findSubscriptionList = async (
+  branchId,
+  { startDate, endDate, search, page, limit },
+) => {
+  const base = db("subs_summ as s")
+    .leftJoin("members as m", function joinMember() {
+      this.on("m.id", "=", "s.member_id").andOn(
+        "m.branch_id",
+        "=",
+        "s.branch_id",
+      );
+    })
+    .where("s.branch_id", branchId)
+    .whereNull("s.deleted_at")
+    .where("s.bill_date", ">=", startDate)
+    .whereRaw("s.bill_date < DATE_ADD(?, INTERVAL 1 DAY)", [endDate]);
+
+  if (search) {
+    const like = `%${search}%`;
+
+    base.where((query) => {
+      query
+        .whereRaw("CAST(s.bill_no AS CHAR) LIKE ?", [like])
+        .orWhere("m.member_Id", "like", like)
+        .orWhere("m.phone", "like", like);
+    });
+  }
+
+  const [{ total }] = await base
+    .clone()
+    .countDistinct("s.bill_no as total");
+
+  const rows = await base
+    .clone()
+    .groupBy(
+      "s.bill_no",
+      "s.bill_date",
+      "s.member_id",
+      "m.first_name",
+      "m.last_name",
+      "m.member_Id",
+      "m.phone",
+    )
+    .select(
+      "s.bill_no",
+      formatDay("s.bill_date").as("bill_date"),
+      "s.member_id",
+      "m.first_name",
+      "m.last_name",
+      "m.member_Id as member_code",
+      "m.phone",
+      db.raw("COUNT(*) as item_count"),
+      db.raw("SUM(s.total_price) as total_minor"),
+    )
+    .orderBy("s.bill_date", "desc")
+    .orderBy("s.bill_no", "desc")
+    .limit(limit)
+    .offset((page - 1) * limit);
+
+  // All payments_status rows of a bill are updated together, so the newest
+  // row speaks for the bill (read in id order, the last one wins).
+  const statusRows = rows.length
+    ? await db("payments_status as ps")
+        .leftJoin("payments as p", "p.id", "ps.payment_id")
+        .where("ps.branch_id", branchId)
+        .whereIn(
+          "ps.subs_billno",
+          rows.map((row) => String(row.bill_no)),
+        )
+        .orderBy("ps.id")
+        .select(
+          "ps.subs_billno",
+          "ps.payments_status",
+          "ps.updated_at",
+          "p.payment_name",
+        )
+    : [];
+
+  const statusByBill = new Map(
+    statusRows.map((row) => [String(row.subs_billno), row]),
+  );
+
+  const bills = rows.map((row) => {
+    const status = statusByBill.get(String(row.bill_no));
+    const completed = status?.payments_status === "completed";
+
+    return {
+      bill_no: row.bill_no,
+      bill_date: row.bill_date,
+      member: {
+        id: row.member_id,
+        member_id: row.member_code ?? null,
+        name:
+          [row.first_name, row.last_name].filter(Boolean).join(" ") || null,
+        phone: row.phone ?? null,
+      },
+      item_count: Number(row.item_count),
+      total_minor: Number(row.total_minor),
+      payment: {
+        status: status?.payments_status ?? "draft",
+        method: status?.payment_name ?? null,
+        paid_on: completed ? status.updated_at : null,
+      },
+    };
+  });
+
+  return { bills, total: Number(total) };
+};
+
 module.exports = {
   generateBillNo,
   getItems,
@@ -276,4 +391,5 @@ module.exports = {
   completePayment,
   toBill,
   findSummaryBill,
+  findSubscriptionList,
 };
