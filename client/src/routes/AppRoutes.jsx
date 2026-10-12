@@ -11,7 +11,7 @@ import Staff from "@/pages/staff/index";
 import Subscriptions from "@/pages/subscriptions/index";
 import Payments from "@/pages/payments/index";
 import Attendance from "@/pages/attendance/index";
-import SubscriptionsReport from "@/pages/reports/SubscriptionsReport";
+import SubscriptionsReport from "@/pages/reports/subscriptions";
 import AttendanceReport from "@/pages/reports/AttendanceReport";
 import BalanceReport from "@/pages/reports/BalanceReport";
 import Setting from "@/pages/settings/index";

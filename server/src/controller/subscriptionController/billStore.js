@@ -129,7 +129,12 @@ const toBill = (billNo, items) => ({
 const sumOf = (rows, key) =>
   rows.reduce((total, row) => total + Number(row[key] || 0), 0);
 
-const formatDay = (column) => db.raw(`DATE_FORMAT(${column}, '%Y-%m-%d')`);
+// knex raw expressions have no `.as()`, so the alias is added in the SQL.
+// Used as: formatDay("s.bill_date").as("bill_date")
+// `??` quotes the column and the alias as identifiers.
+const formatDay = (column) => ({
+  as: (alias) => db.raw("DATE_FORMAT(??, '%Y-%m-%d') AS ??", [column, alias]),
+});
 
 // Everything the summary bill page shows for one bill number, scoped to the
 // branch. A bill is one subs_summ row per item, so the header figures are the

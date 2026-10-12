@@ -56,3 +56,28 @@ export const getSummaryBill = (billNo) =>
   api
     .get("/subscription/summary", { params: { bill_no: billNo } })
     .then((res) => res.data.data);
+
+// GET /api/subscription/list
+// params: { start_date, end_date, page, limit, search }
+//   start_date, end_date  YYYY-MM-DD, both days included (required)
+//   page (default 1), limit (default 10, max 100), search (bill no, member ID
+//   or phone)
+// The server accepts the dates in the query string, since a browser cannot
+// send a body on GET. Only roles 1, 2 and 3 may call it (403 otherwise).
+// Response: { success, message, data: { bills, pagination } }
+//   bills:      [{ bill_no, bill_date, member: { id, member_id, name, phone },
+//                  item_count, total_minor,
+//                  payment: { status, method, paid_on } }]
+//   pagination: { page, limit, total, totalPages, hasNextPage, hasPreviousPage }
+export const getSubscriptionList = (params = {}) => {
+  // Drop empty values so we never send ?search=
+  const cleanParams = Object.fromEntries(
+    Object.entries(params).filter(
+      ([, value]) => value !== undefined && value !== null && value !== "",
+    ),
+  );
+
+  return api
+    .get("/subscription/list", { params: cleanParams })
+    .then((res) => res.data.data);
+};
