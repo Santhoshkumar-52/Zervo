@@ -1,10 +1,10 @@
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import Field from "@/components/additonal/Field";
-
+import AsyncCombobox from "@/components/additonal/AsyncCombobox";
 import DatePicker from "@/components/additonal/DatePicker";
+import Field from "@/components/additonal/Field";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,18 +16,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { useStaffStore } from "@/store/staff";
 
-const NO_TRAINER = "none";
+import { trainerSource } from "./trainerSource";
 
 const memberSchema = z.object({
   first_name: z.string().trim().min(1, "First name is required").max(100),
@@ -46,7 +37,10 @@ const memberSchema = z.object({
       message: "Enter a valid email",
     }),
   joined_on: z.string().min(1, "Joined date is required"),
-  assigned_trainer_id: z.string(),
+  // The chosen trainer, or null when unassigned. Only the id and name are kept.
+  assigned_trainer: z
+    .object({ id: z.number(), full_name: z.string() })
+    .nullable(),
   is_active: z.boolean(),
 });
 
@@ -74,9 +68,13 @@ const toFormValues = (member) => ({
   phone: member?.phone ?? "",
   email: member?.email ?? "",
   joined_on: member?.joined_on ?? today(),
-  assigned_trainer_id: member?.assigned_trainer_id
-    ? String(member.assigned_trainer_id)
-    : NO_TRAINER,
+  assigned_trainer: member?.assigned_trainer_id
+    ? {
+        id: member.assigned_trainer_id,
+        full_name:
+          member.trainer_name ?? `Staff #${member.assigned_trainer_id}`,
+      }
+    : null,
   is_active: member ? Boolean(member.is_active) : true,
 });
 
@@ -111,9 +109,6 @@ function EditMemberDialog({
 }) {
   const isCreate = mode === "create";
 
-  // Assigned-staff options come from the staff store.
-  const staff = useStaffStore((state) => state.staff);
-
   const {
     register,
     control,
@@ -130,27 +125,6 @@ function EditMemberDialog({
     if (open) reset(toFormValues(member));
   }, [open, member, reset]);
 
-  const trainerItems = useMemo(() => {
-    const items = staff
-      .filter((person) => person.role === "trainer" && person.is_active)
-      .map((person) => ({
-        value: String(person.id),
-        label: person.full_name,
-      }));
-
-    // The store only holds the staff page that was loaded, so make sure the
-    // member's current trainer is always selectable.
-    const currentId = member?.assigned_trainer_id;
-    if (currentId && !items.some((item) => item.value === String(currentId))) {
-      items.push({
-        value: String(currentId),
-        label: member.trainer_name ?? `Staff #${currentId}`,
-      });
-    }
-
-    return [{ value: NO_TRAINER, label: "Unassigned" }, ...items];
-  }, [staff, member]);
-
   const submit = async (values) => {
     const payload = {
       first_name: values.first_name,
@@ -158,10 +132,8 @@ function EditMemberDialog({
       phone: values.phone,
       email: values.email || null,
       joined_on: values.joined_on,
-      assigned_trainer_id:
-        values.assigned_trainer_id === NO_TRAINER
-          ? null
-          : Number(values.assigned_trainer_id),
+      assigned_trainer_id: values.assigned_trainer?.id ?? null,
+
       is_active: values.is_active,
     };
 
@@ -296,25 +268,23 @@ function EditMemberDialog({
 
             <Field label="Assigned trainer" htmlFor="edit-member-trainer">
               <Controller
-                name="assigned_trainer_id"
+                name="assigned_trainer"
                 control={control}
                 render={({ field }) => (
-                  <Select
-                    items={trainerItems}
+                  <AsyncCombobox
+                    id="edit-member-trainer"
+                    source={trainerSource}
                     value={field.value}
-                    onValueChange={field.onChange}
-                  >
-                    <SelectTrigger id="edit-member-trainer" className="w-full">
-                      <SelectValue placeholder="Select a trainer" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {trainerItems.map((item) => (
-                        <SelectItem key={item.value} value={item.value}>
-                          {item.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onValueChange={(trainer) =>
+                      field.onChange(
+                        trainer
+                          ? { id: trainer.id, full_name: trainer.full_name }
+                          : null,
+                      )
+                    }
+                    placeholder="Unassigned"
+                    clearable
+                  />
                 )}
               />
             </Field>

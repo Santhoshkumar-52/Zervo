@@ -13,7 +13,7 @@ const authorizeRoles = require("../../middleware/auth/authorizeRoles");
 const router = express.Router();
 
 // Plan prices affect billing, so only owners and managers can change them.
-const canManagePlans = authorizeRoles();
+const canManagePlans = authorizeRoles(1,2);
 
 // GET    /api/plan             -> paginated list (page, limit, search, planActive)
 // GET    /api/plan/:id         -> one plan (used to load the edit form)

@@ -96,7 +96,8 @@ const getStaffList = async (req, res) => {
     }
 
     if (role !== undefined) {
-      baseQuery.where("users.role", role);
+      // Role lives in groups (users.group_id -> groups.name), already joined above.
+      baseQuery.where("groups.name", role);
     }
 
     if (isActive !== undefined) {

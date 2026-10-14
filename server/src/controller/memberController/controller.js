@@ -68,14 +68,15 @@ const duplicateResponse = (res, error) => {
 // A trainer must be an active, non-deleted trainer of the same branch.
 const findAvailableTrainer = (trainerId, branchId) =>
   db("users")
+    .join("groups", "users.group_id", "groups.id")
     .where({
-      id: trainerId,
-      branch_id: branchId,
-      role: "trainer",
-      is_active: true,
+      "users.id": trainerId,
+      "users.branch_id": branchId,
+      "groups.name": "trainer",
+      "users.is_active": true,
     })
-    .whereNull("deleted_at")
-    .first("id");
+    .whereNull("users.deleted_at")
+    .first("users.id");
 
 const trainerNotAvailable = (res) =>
   errorResponse(res, "Selected trainer is not available", 400, [

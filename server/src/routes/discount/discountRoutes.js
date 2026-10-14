@@ -13,7 +13,7 @@ const authorizeRoles = require("../../middleware/auth/authorizeRoles");
 const router = express.Router();
 
 // Discounts affect billing, so only owners and managers can change them.
-const canManageDiscounts = authorizeRoles();
+const canManageDiscounts = authorizeRoles(1,2,3);
 
 // GET    /api/discount             -> paginated list (page, limit, search, discountActive, type: 1|2)
 // GET    /api/discount/:id         -> one discount (used to load the edit form)

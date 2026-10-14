@@ -13,8 +13,8 @@ const authorizeRoles = require("../../middleware/auth/authorizeRoles");
 const router = express.Router();
 
 // Front desk can edit members; only owners and managers can delete them.
-const canEditMembers = authorizeRoles("owner", "manager", "front_desk");
-const canDeleteMembers = authorizeRoles();
+const canEditMembers = authorizeRoles(1,2,3);
+const canDeleteMembers = authorizeRoles(1,2);
 
 // GET    /api/member             -> paginated list (page, limit, search, memberActive, branchActive)
 // GET    /api/member/:id         -> one member (used to load the edit form)
