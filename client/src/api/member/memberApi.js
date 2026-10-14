@@ -3,7 +3,8 @@ import api from "../axios";
 // All member endpoints take the member's internal `id` (not `member_Id`).
 
 // GET /api/member
-// params: { page, limit, search, memberActive, branchActive }
+// params: { page, limit, search, memberId, memberActive, branchActive }
+//   memberId: exact match on the member's own ID (members.member_Id)
 // Response: { success, message, data: { members: [], pagination: {} } }
 export const getMembers = (params = {}) => {
   // Drop empty values so we never send ?search=&memberActive=undefined

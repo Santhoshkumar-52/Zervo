@@ -88,7 +88,7 @@ const trainerNotAvailable = (res) =>
 
 const MEMBER_ID_RETRIES = 3;
 
-// GET /api/member?page&limit&search&memberActive&branchActive
+// GET /api/member?page&limit&search&memberId&memberActive&branchActive
 const getmembers = async (req, res) => {
   try {
     const { branchId } = req.user;
@@ -105,6 +105,7 @@ const getmembers = async (req, res) => {
     const search = req.query.search?.trim() || "";
     const memberActive = req.query.memberActive;
     const branchActive = req.query.branchActive;
+    const memberIdParam = req.query.memberId;
 
     const baseQuery = memberQuery(branchId);
 
@@ -119,6 +120,12 @@ const getmembers = async (req, res) => {
           .orWhere("members.phone", "like", `%${search}%`)
           .orWhere("users.full_name", "like", `%${search}%`);
       });
+    }
+
+    // Exact lookup by the member's own ID (used by the attendance screen).
+    // An ID that is not a positive whole number matches nothing.
+    if (memberIdParam !== undefined) {
+      baseQuery.where("members.member_Id", parseId(memberIdParam) ?? 0);
     }
 
     if (memberActive !== undefined) {
