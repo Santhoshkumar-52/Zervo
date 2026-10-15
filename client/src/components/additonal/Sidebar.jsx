@@ -69,6 +69,8 @@ const mainNavigation = [
     title: "Attendance",
     url: "/attendance",
     icon: UserCheck,
+    // Opens as a full-page screen in its own browser tab.
+    newTab: true,
   },
 ];
 
@@ -179,7 +181,8 @@ export default function AppSidebar() {
             <SidebarMenu className="gap-1">
               {mainNavigation.map((item) => {
                 const Icon = item.icon;
-                const active = isActive(item.url);
+                // A new-tab page has no sidebar, so it is never "active" here.
+                const active = item.newTab ? false : isActive(item.url);
 
                 return (
                   <SidebarMenuItem key={item.title}>
@@ -187,7 +190,17 @@ export default function AppSidebar() {
                       isActive={active}
                       tooltip={item.title}
                       className="h-10 px-3"
-                      render={<Link to={item.url} />}
+                      render={
+                        item.newTab ? (
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          />
+                        ) : (
+                          <Link to={item.url} />
+                        )
+                      }
                     >
                       <Icon className="size-4" />
                       <span>{item.title}</span>

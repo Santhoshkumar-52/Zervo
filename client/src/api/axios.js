@@ -221,6 +221,8 @@ api.interceptors.response.use(
         accessToken: newAccessToken,
         refreshToken: newRefreshToken,
         user: currentUser,
+        // Server sends the branch on refresh; if it doesn't, keep the stored one.
+        branch: data.branch ?? useAuthStore.getState().branch,
       });
 
       // ------------------------------------------------

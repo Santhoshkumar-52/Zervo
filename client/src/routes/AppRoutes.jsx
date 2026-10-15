@@ -52,13 +52,15 @@ function AppRoutes() {
           {/* Full-page bill (no sidebar) so it prints cleanly: /summary-bill?id=<bill_no> */}
           <Route path="/summary-bill" element={<SummaryBillPage />} />
 
+          {/* Full-page attendance desk (no sidebar), opened in its own tab */}
+          <Route path="/attendance" element={<Attendance />} />
+
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/members" element={<Members />} />
             <Route path="/staff" element={<Staff />} />
             <Route path="/subscriptions" element={<Subscriptions />} />
             <Route path="/payments" element={<Payments />} />
-            <Route path="/attendance" element={<Attendance />} />
             <Route path="/reports" element={<Navigate to="/reports/subscriptions" replace />} />
             <Route path="/reports/subscriptions" element={<SubscriptionsReport />} />
             <Route path="/reports/attendance" element={<AttendanceReport />} />

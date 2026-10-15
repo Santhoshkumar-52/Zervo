@@ -1,10 +1,28 @@
-﻿const jwt = require("jsonwebtoken");
+const jwt = require("jsonwebtoken");
 
 const db = require("../../config/knexfile");
 
 const { hashPassword, comparePassword } = require("../../utils/hashhelper");
 
 const { successResponse, errorResponse } = require("../../utils/response");
+
+// Branch details sent to the client (kept in its auth store).
+// Explicit fields only, so new columns are never exposed by accident.
+const toBranchPayload = (branch) =>
+  branch
+    ? {
+        id: branch.id,
+        name: branch.name,
+        code: branch.code,
+        logo: branch.logo,
+        attendBackground: branch.attend_background,
+        address: branch.address,
+        phone: branch.phone,
+        currency: branch.currency,
+        subbillUrl: branch.subbill_url,
+        isActive: Boolean(branch.is_active),
+      }
+    : null;
 
 const login = async (req, res) => {
   try {
@@ -119,7 +137,9 @@ const login = async (req, res) => {
           email: user.email,
           role: user.role,
           branchId: user.branch_id,
+          
         },
+        branch: toBranchPayload(branch),
       },
       "Login successful",
     );
@@ -256,6 +276,11 @@ const refreshToken = async (req, res) => {
       );
     }
 
+    // Branch details, so the client keeps them in sync after a refresh
+    const branch = await db("branches")
+      .where({ id: user.branch_id })
+      .first();
+
     // Get access token expiry from environment
     const accessTokenExpiresIn = process.env.JWT_ACCESS_EXPIRES_IN || "15m";
 
@@ -299,6 +324,7 @@ const refreshToken = async (req, res) => {
           role: user.role,
           branchId: user.branch_id,
         },
+        branch: toBranchPayload(branch),
       },
       "Token refreshed successfully",
     );

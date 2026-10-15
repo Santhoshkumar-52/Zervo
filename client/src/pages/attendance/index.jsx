@@ -1,8 +1,11 @@
-﻿import { useRef, useState } from "react";
+import { useRef, useState } from "react";
 
+import BranchBrand from "@/components/additonal/BranchBrand";
+import ThemeSwitcher from "@/components/additonal/ThemeSwitcher";
 import Title from "@/components/additonal/Title";
 import { checkInMember } from "@/api/attendance/attendanceApi";
 import { useAlertStore } from "@/store/alert";
+import { useAuthStore } from "@/store/auth";
 
 import CheckInPanel from "./CheckInPanel";
 import MemberDetailsPanel from "./MemberDetailsPanel";
@@ -11,6 +14,14 @@ import { useMemberLookup } from "./useMemberLookup";
 function Attendance() {
   const inputRef = useRef(null);
   const addAlert = useAlertStore((state) => state.addAlert);
+
+  // Background image chosen by the branch. Optional: the page falls back to
+  // the plain theme background when the branch has none.
+  const attendBackground = useAuthStore(
+    (state) => state.branch?.attendBackground,
+  );
+
+  
 
   const { status, member, memberId, lookup, reset } = useMemberLookup();
 
@@ -104,30 +115,65 @@ function Attendance() {
       setIsCheckingIn(false);
     }
   };
+
   return (
-    <div className="space-y-6">
-      <Title
-        title="Attendance"
-        description="Record and review member check-ins."
-      />
+    // isolate keeps the negative z-index layers below inside this page only.
+    <div className="relative isolate min-h-screen bg-background">
+      {attendBackground && (
+        <>
+          {/* Branch background image, fixed so it stays put while scrolling */}
+          <div
+            aria-hidden="true"
+            className="fixed inset-0 -z-20 bg-cover bg-center bg-no-repeat"
+            style={{ backgroundImage: `url("${attendBackground}")` }}
+          />
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
-        <CheckInPanel
-          onLookup={lookup}
-          isLoading={status === "loading"}
-          checkIns={checkIns}
-          inputRef={inputRef}
+          {/* Overlay: tints and softens the image so the sections stay
+              readable. Uses the theme background colour, so it works in
+              both light and dark mode. */}
+          <div
+            aria-hidden="true"
+            className="fixed inset-0 -z-10 bg-background/45 backdrop-blur-[2px]"
+          />
+        </>
+      )}
+
+
+
+      {/* Slim header: this page opens in its own tab, without the sidebar. */}
+      <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur">
+        <BranchBrand subtitle="Front Desk" />
+
+        {/* Also applies the saved colour/dark theme to this tab */}
+        <div className="ml-auto">
+          <ThemeSwitcher />
+        </div>
+      </header>
+
+      <main className="relative mx-auto w-full max-w-[1600px] space-y-6 p-4 md:p-6">
+        <Title
+          title="Attendance"
+          description="Record and review member check-ins."
         />
 
-        <MemberDetailsPanel
-          status={status}
-          member={member}
-          memberId={memberId}
-          alreadyIn={alreadyIn}
-          isCheckingIn={isCheckingIn}
-          onCheckIn={handleCheckIn}
-        />
-      </div>
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
+          <CheckInPanel
+            onLookup={lookup}
+            isLoading={status === "loading"}
+            checkIns={checkIns}
+            inputRef={inputRef}
+          />
+
+          <MemberDetailsPanel
+            status={status}
+            member={member}
+            memberId={memberId}
+            alreadyIn={alreadyIn}
+            isCheckingIn={isCheckingIn}
+            onCheckIn={handleCheckIn}
+          />
+        </div>
+      </main>
     </div>
   );
 }

@@ -7,6 +7,9 @@ export const useAuthStore = create(
       accessToken: null,
       refreshToken: null,
       user: null,
+      // Logged-in user's branch: { id, name, code, logo, attendBackground,
+      // address, phone, currency, subbillUrl, isActive }
+      branch: null,
       isAuthenticated: false,
 
       // Login/register loading state
@@ -18,11 +21,13 @@ export const useAuthStore = create(
         });
       },
 
-      setAuth: ({ accessToken, refreshToken, user }) => {
+      setAuth: ({ accessToken, refreshToken, user, branch }) => {
         set({
           accessToken,
           refreshToken,
           user,
+          // Keep the current branch when the caller doesn't send one.
+          branch: branch !== undefined ? branch : get().branch,
           isAuthenticated: true,
           isLoading: false,
         });
@@ -45,6 +50,7 @@ export const useAuthStore = create(
           accessToken: null,
           refreshToken: null,
           user: null,
+          branch: null,
           isAuthenticated: false,
           isLoading: false,
         });

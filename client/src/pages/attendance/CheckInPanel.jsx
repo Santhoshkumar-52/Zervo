@@ -91,7 +91,7 @@ function CheckInPanel({ onLookup, isLoading, checkIns, inputRef }) {
 
           <Button type="submit" size="lg" disabled={isLoading}>
             <Search aria-hidden="true" />
-            {isLoading ? "Looking up..." : "Find member"}
+            {isLoading ? "Looking up..." : "Sumbit"}
           </Button>
         </form>
 

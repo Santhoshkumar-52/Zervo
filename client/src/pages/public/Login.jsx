@@ -55,6 +55,7 @@ function Login() {
         accessToken: data.accessToken,
         refreshToken: data.refreshToken,
         user: data.user,
+        branch: data.branch ?? null,
       });
 
       // Navigate after successful login

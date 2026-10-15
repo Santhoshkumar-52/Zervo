@@ -1,4 +1,4 @@
-﻿
+
 import { Outlet } from "react-router-dom";
 import {
   SidebarInset,
@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/sidebar";
 import AppSidebar from "@/components/additonal/Sidebar";
 import ThemeSwitcher from "@/components/additonal/ThemeSwitcher";
+import BranchBrand from "@/components/additonal/BranchBrand";
 
 
 
@@ -24,15 +25,8 @@ export default function AppLayout() {
 
           <div className="h-5 w-px bg-border" />
 
-          <div className="flex flex-col">
-            <span className="text-sm font-semibold">
-              Zervo Gym
-            </span>
-
-            <span className="text-xs text-muted-foreground">
-              Management System
-            </span>
-          </div>
+          {/* Branch logo + name */}
+          <BranchBrand subtitle="Management System" />
 
           {/* Color + light/dark picker (sets class on <html>) */}
           <div className="ml-auto">
