@@ -15,7 +15,7 @@ export async function seed(knex) {
       subbill_url: "https://example.com/",
       logo: "https://res.cloudinary.com/samxg4vp/image/upload/v1791735500/Zervo_Futuristic_Fitness_Logo_kpsxpd.png",
       attend_background:
-        "https://res.cloudinary.com/samxg4vp/image/upload/v1792079232/istockphoto-610431768-1024x1024_h8oijs.jpg",
+        "https://res.cloudinary.com/samxg4vp/image/upload/v1792081467/istockphoto-610431768-1024x1024_mkqsfc.jpg",
       currency: "₹",
     },
     {
@@ -29,7 +29,7 @@ export async function seed(knex) {
       logo: "https://res.cloudinary.com/samxg4vp/image/upload/v1791735500/Zervo_Futuristic_Fitness_Logo_kpsxpd.png",
       currency: "₹",
       attend_background:
-        "https://res.cloudinary.com/samxg4vp/image/upload/v1792079232/istockphoto-610431768-1024x1024_h8oijs.jpg",
+        "https://res.cloudinary.com/samxg4vp/image/upload/v1792081467/istockphoto-610431768-1024x1024_mkqsfc.jpg",
     },
   ]);
 }

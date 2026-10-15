@@ -4,8 +4,16 @@ export async function up(knex) {
 
     // Mandatory
     table.string("name", 150).notNullable();
-    table.string("logo", 2083).notNullable();
-    table.string("attend_background", 2083).notNullable();
+    table
+      .string("logo", 2083)
+      .defaultTo(
+        "https://res.cloudinary.com/samxg4vp/image/upload/v1791735500/Zervo_Futuristic_Fitness_Logo_kpsxpd.png",
+      );
+    table
+      .string("attend_background", 2083)
+      .defaultTo(
+        "https://res.cloudinary.com/samxg4vp/image/upload/v1792081467/istockphoto-610431768-1024x1024_mkqsfc.jpg",
+      );
 
     // Mandatory and unique
     table.string("code", 50).notNullable().unique();
