@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+﻿import { useRef, useState } from "react";
 
 import Title from "@/components/additonal/Title";
 import { checkInMember } from "@/api/attendance/attendanceApi";
@@ -22,13 +22,44 @@ function Attendance() {
     member && checkIns.some((entry) => entry.member_id === member.id),
   );
 
+  // The server explains why a check-in was refused (no active plan, plan
+  // expired, member inactive, ...) in response.data.message. Axios only puts a
+  // generic "Request failed with status code 403" in error.message, so read the
+  // server message first.
+  // const getErrorMessage = (err) => {
+  //   const data = err?.response?.data;
+
+  //   // Zod validation failures: { message: "Validation failed", errors: ... }
+  //   const details = Array.isArray(data?.errors)
+  //     ? data.errors
+  //         .map((item) => (typeof item === "string" ? item : item?.message))
+  //         .filter(Boolean)
+  //         .join(", ")
+  //     : "";
+
+  //   if (data?.message) {
+  //     return details ? `${data.message}: ${details}` : data.message;
+  //   }
+
+  //   // No response at all: server down or no network.
+  //   if (err?.request && !err?.response) {
+  //     return "Cannot reach the server. Check your connection and try again.";
+  //   }
+
+  //   return "Could not record the check-in. Please try again.";
+  // };
+
   const handleCheckIn = async () => {
     if (!member || alreadyIn || isCheckingIn) return;
 
     setIsCheckingIn(true);
 
     try {
-      const attendance = await checkInMember(member.id);
+      // Server expects the member's own ID (members.member_Id), not the row id.
+      const response = await checkInMember(member.member_Id);
+
+      // Response shape: { success, message, data: { attendance, member, plan } }
+      const { attendance, plan } = response.data.data;
 
       setCheckIns((current) => [
         {
@@ -37,7 +68,7 @@ function Attendance() {
           name: member.member_name,
           member_Id: member.member_Id,
           avatar_url: member.avatar_url,
-          checked_in_at: attendance.checked_in_at,
+          checked_in_at: attendance.checkin_at,
         },
         ...current,
       ]);
@@ -48,18 +79,31 @@ function Attendance() {
         message: `${member.member_name} has been checked in.`,
       });
 
+      // Plan is close to ending: tell the front desk separately.
+      if (plan?.expiring_soon && plan?.message) {
+        addAlert({
+          type: "warning",
+          title: "Plan expiring",
+          message: `${member.member_name}: ${plan.message}.`,
+          duration: 6000,
+        });
+      }
+
       reset();
       inputRef.current?.focus();
-    } catch {
+    } catch (err) {
+      console.log(err.response);
+      
       addAlert({
         type: "error",
-        message: "Could not record the check-in. Please try again.",
+        title: "Check-in failed",
+        message: err.response.data.message,
+        duration: 6000,
       });
     } finally {
       setIsCheckingIn(false);
     }
   };
-
   return (
     <div className="space-y-6">
       <Title
