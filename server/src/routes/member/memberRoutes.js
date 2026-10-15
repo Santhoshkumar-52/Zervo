@@ -8,6 +8,9 @@ const {
   updateMemberStatus,
   deleteMember,
 } = require("../../controller/memberController/controller");
+const {
+  checkInMember,
+} = require("../../controller/attendanceController/controller");
 const authorizeRoles = require("../../middleware/auth/authorizeRoles");
 
 const router = express.Router();
@@ -16,13 +19,15 @@ const router = express.Router();
 const canEditMembers = authorizeRoles(1,2,3);
 const canDeleteMembers = authorizeRoles(1,2);
 
-// GET    /api/member             -> paginated list (page, limit, search, memberActive, branchActive)
-// GET    /api/member/:id         -> one member (used to load the edit form)
-// POST   /api/member             -> create (member_Id generated, branch from logged-in user)
-// PATCH  /api/member/:id         -> update details
-// PATCH  /api/member/:id/status  -> toggle active / inactive, body: { is_active }
-// DELETE /api/member/:id         -> soft delete (sets deleted_at + deleted_by)
+// GET    /api/member                     -> paginated list (page, limit, search, memberActive, branchActive)
+// POST   /api/member/attendance/check-in -> member check-in, body: { member_id } (no role check)
+// GET    /api/member/:id                 -> one member (used to load the edit form)
+// POST   /api/member                     -> create (member_Id generated, branch from logged-in user)
+// PATCH  /api/member/:id                 -> update details
+// PATCH  /api/member/:id/status          -> toggle active / inactive, body: { is_active }
+// DELETE /api/member/:id                 -> soft delete (sets deleted_at + deleted_by)
 router.get("/", getmembers);
+router.post("/attendance/check-in", checkInMember);
 router.post("/", canEditMembers, createMember);
 router.get("/:id", getMemberById);
 router.patch("/:id/status", canEditMembers, updateMemberStatus);
