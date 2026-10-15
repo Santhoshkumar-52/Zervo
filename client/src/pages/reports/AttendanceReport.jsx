@@ -1,36 +1,19 @@
-import { CalendarCheck } from "lucide-react";
-
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import Title from "@/components/additonal/Title";
+
+import AttendanceReportList from "./attendance/AttendanceReportList";
 
 function AttendanceReport() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Title
         title="Attendance report"
-        description="Daily check-ins and attendance trends for your members."
+        description="Member check-ins in a date range, with check-out and duration."
       />
 
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CalendarCheck className="size-5" />
-            Attendance report
-          </CardTitle>
-
-          <CardDescription>Nothing here yet.</CardDescription>
-        </CardHeader>
-
         <CardContent>
-          <p className="text-sm text-muted-foreground">
-            This report is under construction.
-          </p>
+          <AttendanceReportList />
         </CardContent>
       </Card>
     </div>
