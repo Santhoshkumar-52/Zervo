@@ -39,15 +39,32 @@ const BILLS_ON_DAY = {
 
   // No bill on every 4th day (3, 7, 11 ...), a second one on days 0, 14, 21
   // and 28: 31 + 4 = 35 bills.
-  "ANNA-NAGAR": (day) => (day % 4 === 3 ? 0 : [0, 14, 21, 28].includes(day) ? 2 : 1),
+  "ANNA-NAGAR": (day) =>
+    day % 4 === 3 ? 0 : [0, 14, 21, 28].includes(day) ? 2 : 1,
 };
 
 // Status of each bill, repeated in this order: mostly paid, some still open.
 const STATUS_CYCLE = [
-  "completed", "completed", "completed", "pending", "completed",
-  "draft", "completed", "cancelled", "completed", "completed",
-  "pending", "completed", "cancelled", "completed", "draft",
-  "completed", "completed", "pending", "completed", "cancelled",
+  "completed",
+  "completed",
+  "completed",
+  "pending",
+  "completed",
+  "draft",
+  "completed",
+  "cancelled",
+  "completed",
+  "completed",
+  "pending",
+  "completed",
+  "cancelled",
+  "completed",
+  "draft",
+  "completed",
+  "completed",
+  "pending",
+  "completed",
+  "cancelled",
 ];
 
 // Payment method of the paid bills, by name, repeated in this order.
@@ -103,7 +120,9 @@ exports.seed = async function (knex) {
       .select("id", "branch_id", "payment_name");
 
     if (!payments.length) {
-      throw new Error("No payment methods found. Run 08_payment_methods first.");
+      throw new Error(
+        "No payment methods found. Run 08_payment_methods first.",
+      );
     }
 
     await removeSeededBills(trx);
@@ -157,7 +176,9 @@ exports.seed = async function (knex) {
       }
 
       if (!plans.length) {
-        throw new Error(`No active plans found for ${code}. Run 05_plans first.`);
+        throw new Error(
+          `No active plans found for ${code}. Run 05_plans first.`,
+        );
       }
 
       // "No discount" first, then the branch's own discounts.
@@ -171,7 +192,9 @@ exports.seed = async function (knex) {
 
       // Payment methods, preferring the branch's own rows.
       const methodFor = (name) =>
-        payments.find((p) => p.payment_name === name && p.branch_id === branch.id) ??
+        payments.find(
+          (p) => p.payment_name === name && p.branch_id === branch.id,
+        ) ??
         payments.find((p) => p.payment_name === name) ??
         payments[0];
 
@@ -212,13 +235,17 @@ exports.seed = async function (knex) {
           // ---- Who, how it was paid -----------------------------------
 
           const memberId = members[(index * 3 + day) % members.length];
-          const issuerId = issuers.length ? issuers[index % issuers.length] : null;
+          const issuerId = issuers.length
+            ? issuers[index % issuers.length]
+            : null;
 
           const status = STATUS_CYCLE[index % STATUS_CYCLE.length];
           const isPaid = status === "completed";
 
           // Paid bills are stamped a little after they were raised.
-          const paidAt = new Date(when.getTime() + (10 + (index % 30)) * 60 * 1000);
+          const paidAt = new Date(
+            when.getTime() + (10 + (index % 30)) * 60 * 1000,
+          );
 
           if (paidAt > now) paidAt.setTime(now.getTime());
 
@@ -232,8 +259,10 @@ exports.seed = async function (knex) {
           const items = [];
 
           for (let k = 0; k < itemCount; k += 1) {
-            const plan = plans[PLAN_CYCLE[(index + k) % PLAN_CYCLE.length] % plans.length];
-            const discount = discountOptions[(index + k) % discountOptions.length];
+            const plan =
+              plans[PLAN_CYCLE[(index + k) % PLAN_CYCLE.length] % plans.length];
+            const discount =
+              discountOptions[(index + k) % discountOptions.length];
 
             // Most items start the day they are billed, some a few days later.
             const startDate = addDays(billDate, (index + k) % 4 === 3 ? 2 : 0);
@@ -257,7 +286,9 @@ exports.seed = async function (knex) {
                 discount_type: discount.type,
                 discount_price: amounts.discountMinor,
                 discount_rate:
-                  discount.type === DISCOUNT_TYPE.PERCENTAGE ? discount.value : null,
+                  discount.type === DISCOUNT_TYPE.PERCENTAGE
+                    ? discount.value
+                    : null,
                 discounted_price: amounts.taxableMinor,
                 tax_percent: taxRate,
                 tax_amount: amounts.taxMinor,
@@ -308,7 +339,7 @@ exports.seed = async function (knex) {
               subs_billno: String(billNo),
               branch_id: branch.id,
               payment_id: paymentId,
-              total_price: grandTotal,
+              paid_price: grandTotal,
               payments_status: status,
               ...audit,
             });

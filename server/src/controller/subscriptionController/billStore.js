@@ -71,13 +71,11 @@ const addItem = (branchId, userId, billNo, item) =>
     const grandTotal = sumTotals(items);
     const bill = { branch_id: branchId, subs_billno: String(billNo) };
 
-    await trx("payments_status")
-      .where(bill)
-      .update({ total_price: grandTotal, updated_by: userId });
+    await trx("payments_status").where(bill).update({ updated_by: userId });
 
     await trx("payments_status").insert({
       ...bill,
-      total_price: grandTotal,
+      payments_status: "draft",
       created_by: userId,
     });
 
@@ -237,13 +235,23 @@ const findSummaryBill = async (branchId, billNo) => {
     subscription_no: first.subscription_no,
     // The bill covers the earliest start to the latest end of its items.
     start_date: summRows.map((row) => row.start_date).sort()[0],
-    end_date: summRows.map((row) => row.end_date).sort().reverse()[0],
+    end_date: summRows
+      .map((row) => row.end_date)
+      .sort()
+      .reverse()[0],
     base_price: sumOf(summRows, "base_price"),
     // One kind of discount keeps its type (and rate); mixed ones show as a fixed amount.
-    discount_type: discountTypes.length === 1 ? discountTypes[0] : discountTypes.length ? 2 : 0,
+    discount_type:
+      discountTypes.length === 1
+        ? discountTypes[0]
+        : discountTypes.length
+          ? 2
+          : 0,
     discount_price: sumOf(summRows, "discount_price"),
     discount_rate:
-      discountTypes.length === 1 && discountTypes[0] === 1 && discountRates.length === 1
+      discountTypes.length === 1 &&
+      discountTypes[0] === 1 &&
+      discountRates.length === 1
         ? discountRates[0]
         : null,
     discounted_price: discounted,
@@ -307,9 +315,7 @@ const findSubscriptionList = async (
     });
   }
 
-  const [{ total }] = await base
-    .clone()
-    .countDistinct("s.bill_no as total");
+  const [{ total }] = await base.clone().countDistinct("s.bill_no as total");
 
   const rows = await base
     .clone()
@@ -371,8 +377,7 @@ const findSubscriptionList = async (
       member: {
         id: row.member_id,
         member_id: row.member_code ?? null,
-        name:
-          [row.first_name, row.last_name].filter(Boolean).join(" ") || null,
+        name: [row.first_name, row.last_name].filter(Boolean).join(" ") || null,
         phone: row.phone ?? null,
       },
       item_count: Number(row.item_count),

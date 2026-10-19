@@ -1,4 +1,3 @@
-
 exports.up = async function (knex) {
   await knex.schema.createTable("payments_status", (table) => {
     table.increments("id").unsigned().primary();
@@ -10,15 +9,10 @@ exports.up = async function (knex) {
     // Set when the bill is paid; empty while the bill is a draft
     table.integer("payment_id").unsigned().nullable();
 
-    table.bigInteger("total_price").unsigned().notNullable();
+    table.bigInteger("paid_price").unsigned().notNullable();
 
     table
-      .enum("payments_status", [
-        "draft",
-        "pending",
-        "cancelled",
-        "completed",
-      ])
+      .enum("payments_status", ["draft", "pending", "cancelled", "completed"])
       .nullable()
       .defaultTo("draft");
 
@@ -32,9 +26,7 @@ exports.up = async function (knex) {
     table
       .timestamp("updated_at")
       .notNullable()
-      .defaultTo(
-        knex.raw("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
-      );
+      .defaultTo(knex.raw("CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"));
 
     // Indexes
     table.index(["branch_id"], "idx_payments_status_branch_id");
