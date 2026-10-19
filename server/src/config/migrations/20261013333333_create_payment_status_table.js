@@ -10,6 +10,7 @@ exports.up = async function (knex) {
     table.integer("payment_id").unsigned().nullable();
 
     table.bigInteger("paid_price").unsigned().notNullable();
+    table.bigInteger("change").unsigned().notNullable();
 
     table
       .enum("payments_status", ["draft", "pending", "cancelled", "completed"])

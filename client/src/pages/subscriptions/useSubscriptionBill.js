@@ -23,8 +23,8 @@ const showError = (error, fallback) =>
  * `addItem(payload)` sends one item (with the bill's bill_no once it has one);
  * the server calculates it and returns the whole bill, which replaces what is
  * shown.
- * `pay(paymentId)` completes the payment of the bill and then starts a new,
- * empty bill.
+ * `pay({ paymentId, paidPriceMinor })` completes the payment of the bill and
+ * then starts a new, empty bill.
  */
 export function useSubscriptionBill() {
   const queryClient = useQueryClient();
@@ -47,11 +47,12 @@ export function useSubscriptionBill() {
   });
 
   const { mutateAsync: pay, isPending: isPaying } = useMutation({
-    mutationFn: (paymentId) =>
+    mutationFn: ({ paymentId, paidPriceMinor }) =>
       completeSubscriptionPayment({
         branch_id: branchId,
         payment_id: paymentId,
         bill_no: bill.bill_no,
+        paid_price: paidPriceMinor,
       }),
     onSuccess: () => queryClient.setQueryData(BILL_KEY, EMPTY_BILL),
     onError: (error) => showError(error, "Could not complete the payment"),

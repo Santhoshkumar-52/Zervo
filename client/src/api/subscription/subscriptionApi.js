@@ -41,9 +41,14 @@ export const addSubscriptionItem = (payload) =>
   api.post("/subscription/items", payload).then((res) => res.data.data);
 
 // POST /api/subscription/payment
-// body: { branch_id, payment_id, bill_no } (all required)
-// Marks the bill's payment as completed.
-// Response: { success, message, data: { bill_no, payment_id, payments_status } }
+// body: { branch_id, payment_id, bill_no, paid_price } (all required;
+// paid_price is in minor units and can only be more than the bill's grand
+// total when the payment method is cash)
+// Saves the payment: status is "completed" when paid_price covers the grand
+// total, otherwise "pending". For cash (payment_id 1) any extra is returned as
+// change; every other method has change 0.
+// Response: { success, message, data: { bill_no, payment_id, paid_price,
+//             change, payments_status } }
 export const completeSubscriptionPayment = (payload) =>
   api.post("/subscription/payment", payload).then((res) => res.data.data);
 

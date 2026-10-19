@@ -104,13 +104,22 @@ const findBillRecords = async (branchId, billNo) => {
   return { summ, item, statuses };
 };
 
-// Marks every payments_status row of the bill as paid with the given payment.
-const completePayment = (branchId, billNo, paymentId, userId) =>
+// Saves the payment on every payments_status row of the bill: the method, the
+// amount paid, the change given back (minor units) and the resulting status
+// ("completed" when fully paid, "pending" otherwise).
+const completePayment = (
+  branchId,
+  billNo,
+  { paymentId, paidPrice, changePrice, paymentsStatus },
+  userId,
+) =>
   db("payments_status")
     .where({ branch_id: branchId, subs_billno: String(billNo) })
     .update({
       payment_id: paymentId,
-      payments_status: "completed",
+      paid_price: paidPrice,
+      change: changePrice,
+      payments_status: paymentsStatus,
       updated_by: userId,
     });
 

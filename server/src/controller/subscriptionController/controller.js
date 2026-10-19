@@ -52,6 +52,10 @@ const findPayment = (id, branchId) =>
     .select("id")
     .first();
 
+// Cash is payment_id 1. Only cash may take more than the grand total; the
+// difference is given back as change. Every other method has no change.
+const CASH_PAYMENT_ID = 1;
+
 // GET /api/subscription/items?bill_no=
 // -> { bill_no, items, totals } for that bill (empty when no bill_no is sent).
 const getBillItems = async (req, res) => {
@@ -111,7 +115,12 @@ const addBillItem = async (req, res) => {
         res,
         "All items on a bill must be for the same member",
         409,
-        [{ field: "member_id", message: "Member is locked while the bill has items" }],
+        [
+          {
+            field: "member_id",
+            message: "Member is locked while the bill has items",
+          },
+        ],
       );
     }
 
@@ -120,7 +129,12 @@ const addBillItem = async (req, res) => {
         res,
         "All items on a bill must have the same bill date",
         409,
-        [{ field: "bill_date", message: "Bill date is locked while the bill has items" }],
+        [
+          {
+            field: "bill_date",
+            message: "Bill date is locked while the bill has items",
+          },
+        ],
       );
     }
 
@@ -200,10 +214,15 @@ const rejectPayment = (res, message, status) => {
 };
 
 // POST /api/subscription/payment
-// body: { branch_id, payment_id, bill_no } (all required)
+// body: { branch_id, payment_id, bill_no, paid_price } (all required;
+// paid_price is in minor units)
 // The bill must exist in subs_summ, subs_items and payments_status and must not
-// be completed yet. Then its payments_status rows are marked completed with the
-// payment_id.
+// be completed yet. paid_price cannot be more than the bill's grand total
+// unless the payment method is cash (payment_id 1).
+// Then its payments_status rows are saved with the payment_id and paid_price:
+//   paid_price >= grand total -> "completed"
+//   paid_price <  grand total -> "pending" (not fully paid)
+// change is paid_price - grand total for cash, otherwise 0.
 const completeBillPayment = async (req, res) => {
   try {
     const parsed = completePaymentSchema.safeParse(req.body);
@@ -217,8 +236,12 @@ const completeBillPayment = async (req, res) => {
       );
     }
 
-    const { branch_id: branchId, payment_id: paymentId, bill_no: billNo } =
-      parsed.data;
+    const {
+      branch_id: branchId,
+      payment_id: paymentId,
+      bill_no: billNo,
+      paid_price: paidPrice,
+    } = parsed.data;
     const { userId } = req.user;
 
     const { summ, item, statuses } = await findBillRecords(branchId, billNo);
@@ -236,19 +259,57 @@ const completeBillPayment = async (req, res) => {
     }
 
     if (statuses.includes("completed")) {
-      return rejectPayment(res, "Payment for this bill is already completed", 409);
+      return rejectPayment(
+        res,
+        "Payment for this bill is already completed",
+        409,
+      );
     }
 
-    if (!(await findPayment(paymentId, branchId))) {
+    const payment = await findPayment(paymentId, branchId);
+
+    if (!payment) {
       return rejectPayment(res, "Payment method not found or inactive", 404);
     }
 
-    await completePayment(branchId, billNo, paymentId, userId);
+    const { grand_total_minor: grandTotal } = toBill(
+      billNo,
+      await getItems(branchId, billNo),
+    ).totals;
+
+    const isCash = payment.id === CASH_PAYMENT_ID;
+
+    if (!isCash && paidPrice > grandTotal) {
+      return rejectPayment(
+        res,
+        "Only cash can be more than the grand total",
+        400,
+      );
+    }
+
+    const paymentsStatus = paidPrice >= grandTotal ? "completed" : "pending";
+    const changePrice =
+      isCash && paidPrice > grandTotal ? paidPrice - grandTotal : 0;
+
+    await completePayment(
+      branchId,
+      billNo,
+      { paymentId, paidPrice, changePrice, paymentsStatus },
+      userId,
+    );
 
     return successResponse(
       res,
-      { bill_no: billNo, payment_id: paymentId, payments_status: "completed" },
-      "Payment completed successfully",
+      {
+        bill_no: billNo,
+        payment_id: paymentId,
+        paid_price: paidPrice,
+        change: changePrice,
+        payments_status: paymentsStatus,
+      },
+      paymentsStatus === "completed"
+        ? "Payment completed successfully"
+        : "Payment recorded as pending",
     );
   } catch (error) {
     console.error("Error completing payment:", error);

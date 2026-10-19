@@ -59,12 +59,16 @@ const addItemSchema = z
     }
   });
 
-// What the client sends to complete the payment of a bill. All three are
-// required.
+// What the client sends to complete the payment of a bill. All four are
+// required. paid_price is in minor units (paise), like every other amount.
 const completePaymentSchema = z.object({
   branch_id: id("Branch"),
   payment_id: id("Payment"),
   bill_no: id("Bill no"),
+  paid_price: z
+    .number({ message: "Paid price must be a number" })
+    .int("Paid price must be a whole number of minor units")
+    .min(1, "Paid price must be greater than 0"),
 });
 
 // What the client sends to list the bills of a date range (bill date, both

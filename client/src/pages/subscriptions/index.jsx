@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import Title from "@/components/additonal/Title";
+import { formatMoney } from "@/utils/currency";
 import { notifyError, notifySuccess } from "@/utils/notification";
 
 import SubscriptionFooter from "./SubscriptionFooter";
@@ -17,20 +18,30 @@ function Subscriptions() {
   // The payment method chosen for this bill (an id from the dropdown).
   const [paymentMethodId, setPaymentMethodId] = useState(null);
 
-  const handlePay = async () => {
+  const handlePay = async ({ paidPriceMinor }) => {
     if (!paymentMethodId) {
       notifyError("Select a payment method");
       return;
     }
 
+    let result;
+
     try {
-      await pay(paymentMethodId);
+      result = await pay({ paymentId: paymentMethodId, paidPriceMinor });
     } catch {
       // The hook shows the error; keep the bill and the chosen method.
       return;
     }
 
-    notifySuccess("Payment completed");
+    if (result.payments_status === "pending") {
+      notifySuccess("Payment recorded as pending (not fully paid)");
+    } else if (result.change > 0) {
+      notifySuccess(
+        `Payment completed. Change to return: ${formatMoney(result.change)}`,
+      );
+    } else {
+      notifySuccess("Payment completed");
+    }
     setPaymentMethodId(null);
   };
 
@@ -41,10 +52,7 @@ function Subscriptions() {
         description="Manage membership plans and member subscriptions."
       />
 
-      <SubscriptionForm
-        hasItems={bill.items.length > 0}
-        onAddItem={addItem}
-      />
+      <SubscriptionForm hasItems={bill.items.length > 0} onAddItem={addItem} />
 
       <SubscriptionItems items={bill.items} isLoading={isLoading} />
 
