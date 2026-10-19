@@ -12,8 +12,18 @@ const {
  *
  * Every bill is written the same way the app writes it:
  *   - one subs_summ + one subs_items row per item
- *   - one payments_status row per item, all carrying the bill's grand total
+ *   - one payments_status row per item, all carrying the bill's payment
+ *     (payment_id, paid_price, change, status)
+ *   - one subs_balance row for every bill that was only part paid
  *   - amounts come from utils/billing (calculateTotals / getEndDate)
+ *
+ * Payment scenarios (so the balance and totals reports look like real life):
+ *   - completed, paid in full (any method): paid_price = grand total
+ *   - completed, cash with change: the customer hands over a round note
+ *     amount and gets the difference back (change > 0, Cash only)
+ *   - completed, part paid: paid_price is a share of the total, a
+ *     subs_balance row holds what was paid, and the rest is the balance
+ *   - draft / pending / cancelled: no payment method, nothing paid
  *
  * Bill dates run from DAYS_BACK days ago up to today, so the report always has
  * data inside its date range. Everything is deterministic (no random), so
@@ -70,6 +80,44 @@ const STATUS_CYCLE = [
 // Payment method of the paid bills, by name, repeated in this order.
 const METHOD_CYCLE = ["UPI", "Cash", "Card", "UPI", "Cash"];
 
+// How each completed bill was settled, repeated in this order: mostly in full,
+// some cash with change, some part paid (these leave a balance).
+const PAYMENT_OUTCOMES = [
+  "full",
+  "full",
+  "change",
+  "full",
+  "partial",
+  "full",
+  "full",
+  "change",
+  "partial",
+  "full",
+  "full",
+  "partial",
+  "full",
+  "change",
+  "full",
+  "full",
+  "partial",
+  "full",
+  "full",
+  "full",
+];
+
+// Share of the total paid on a part paid bill, repeated in this order.
+const PART_SHARES = [0.5, 0.7, 0.4, 0.85];
+
+// Note sizes (minor units) a cash customer rounds up to: 100, 500, 1000.
+const CASH_NOTES = [10000, 50000, 100000];
+
+// Part payment: a whole number of rupees, more than 0 and less than the total.
+const partPayment = (total, share) =>
+  Math.min(Math.max(Math.floor((total * share) / 100) * 100, 100), total - 100);
+
+// Cash handed over: the next note amount above the total (so change is > 0).
+const cashTendered = (total, note) => Math.ceil((total + 1) / note) * note;
+
 // Plans (by position in the branch's plan list) used by the items in turn.
 const PLAN_CYCLE = [0, 1, 0, 2, 1, 0, 3, 1, 0, 2];
 
@@ -106,6 +154,7 @@ const removeSeededBills = async (trx) => {
   const billNos = [...new Set(seeded.map((row) => String(row.bill_no)))];
 
   await trx("subs_items").whereIn("subs_summ_id", summIds).del();
+  await trx("subs_balance").whereIn("bill_no", billNos.map(Number)).del();
   await trx("payments_status").whereIn("subs_billno", billNos).del();
   await trx("subs_summ").whereIn("id", summIds).del();
 };
@@ -202,6 +251,7 @@ exports.seed = async function (knex) {
 
       let index = 0; // bill counter of this branch
       let itemSeq = 0; // item counter of this branch (subscription_no)
+      let paidSeq = 0; // completed-bill counter (picks method and outcome)
 
       // Oldest day first, so older bills get the lower bill numbers.
       for (let day = DAYS_BACK; day >= 0; day -= 1) {
@@ -249,9 +299,6 @@ exports.seed = async function (knex) {
 
           if (paidAt > now) paidAt.setTime(now.getTime());
 
-          const paymentId = isPaid
-            ? methodFor(METHOD_CYCLE[index % METHOD_CYCLE.length]).id
-            : null;
 
           // ---- Items --------------------------------------------------
 
@@ -302,7 +349,44 @@ exports.seed = async function (knex) {
             0,
           );
 
-          // ---- Write (same three tables the app writes) ----------------
+          // ---- Payment ------------------------------------------------
+
+          let paymentId = null;
+          let paidPrice = 0;
+          let change = 0;
+          let balancePaid = null; // set for part paid bills (subs_balance)
+
+          if (isPaid) {
+            paidSeq += 1;
+
+            const outcome = PAYMENT_OUTCOMES[paidSeq % PAYMENT_OUTCOMES.length];
+
+            // Only cash gives change back.
+            const methodName =
+              outcome === "change"
+                ? "Cash"
+                : METHOD_CYCLE[paidSeq % METHOD_CYCLE.length];
+
+            paymentId = methodFor(methodName).id;
+
+            if (outcome === "partial") {
+              paidPrice = partPayment(
+                grandTotal,
+                PART_SHARES[paidSeq % PART_SHARES.length],
+              );
+              balancePaid = paidPrice;
+            } else if (outcome === "change") {
+              paidPrice = cashTendered(
+                grandTotal,
+                CASH_NOTES[paidSeq % CASH_NOTES.length],
+              );
+              change = paidPrice - grandTotal;
+            } else {
+              paidPrice = grandTotal;
+            }
+          }
+
+          // ---- Write (same tables the app writes) -----------------------
 
           for (const item of items) {
             itemSeq += 1;
@@ -334,14 +418,29 @@ exports.seed = async function (knex) {
               ...audit,
             });
 
-            // Like the app: one status row per item, all with the grand total.
+            // Like the app: one status row per item, all with the bill's
+            // payment (what was paid and the change given back).
             await trx("payments_status").insert({
               subs_billno: String(billNo),
               branch_id: branch.id,
               payment_id: paymentId,
-              paid_price: grandTotal,
+              paid_price: paidPrice,
+              change,
               payments_status: status,
               ...audit,
+            });
+          }
+
+          // A part paid bill keeps what was paid in subs_balance (one row).
+          if (balancePaid !== null) {
+            await trx("subs_balance").insert({
+              bill_no: billNo,
+              branch_id: branch.id,
+              paid_amount: balancePaid,
+              created_by: issuerId,
+              updated_by: issuerId,
+              created_at: paidAt,
+              updated_at: paidAt,
             });
           }
         }
