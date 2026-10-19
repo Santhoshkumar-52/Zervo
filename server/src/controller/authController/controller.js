@@ -136,6 +136,7 @@ const login = async (req, res) => {
           fullName: user.full_name,
           email: user.email,
           role: user.role,
+          groupId: user.group_id,
           branchId: user.branch_id,
           
         },
@@ -322,6 +323,7 @@ const refreshToken = async (req, res) => {
           fullName: user.full_name,
           email: user.email,
           role: user.role,
+          groupId: user.group_id,
           branchId: user.branch_id,
         },
         branch: toBranchPayload(branch),
