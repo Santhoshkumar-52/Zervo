@@ -1,5 +1,5 @@
-
-import { Outlet } from "react-router-dom";
+import { useEffect } from "react";
+import { Outlet, useNavigate } from "react-router-dom";
 import {
   SidebarInset,
   SidebarProvider,
@@ -8,10 +8,74 @@ import {
 import AppSidebar from "@/components/additonal/Sidebar";
 import ThemeSwitcher from "@/components/additonal/ThemeSwitcher";
 import BranchBrand from "@/components/additonal/BranchBrand";
+import Spinner from "@/components/additonal/Spinner";
 
+import { useAuthStore } from "@/store/auth";
+import { useInitStore } from "@/store/init";
+import { notifyError } from "@/utils/notification";
 
+// Clear, user-facing message for a failed init load.
+const getInitErrorMessage = (error) => {
+  // No response at all: server down or no internet
+  if (!error?.response) {
+    return "We couldn't reach the server to load your data. Please check your connection and sign in again.";
+  }
+
+  const status = error.response.status;
+
+  if (status === 401 || status === 403) {
+    return "Your session couldn't be verified. Please sign in again.";
+  }
+
+  return "We signed you in but couldn't load your workspace data. Please try signing in again.";
+};
 
 export default function AppLayout() {
+  const navigate = useNavigate();
+
+  const logout = useAuthStore((state) => state.logout);
+
+  const hasLoaded = useInitStore((state) => state.hasLoaded);
+  const fetchInit = useInitStore((state) => state.fetchInit);
+  const resetInit = useInitStore((state) => state.reset);
+
+  // Load the init data once when the app shell mounts (after login, or after
+  // a page refresh with a saved session).
+  useEffect(() => {
+    if (hasLoaded) return;
+
+    const loadInit = async () => {
+      try {
+        await fetchInit();
+      } catch (initError) {
+        console.error("Init load error:", initError);
+
+        // Don't keep a half-finished session: clear it and go back to login
+        logout();
+        resetInit();
+
+        const initMessage = getInitErrorMessage(initError);
+
+        notifyError(initMessage);
+
+        // Login shows this message under the form
+        navigate("/login", {
+          replace: true,
+          state: { errorMessage: initMessage },
+        });
+      }
+    };
+
+    loadInit();
+    // Run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Show the spinner until the init data is ready
+  if (!hasLoaded) {
+    return <Spinner message="Loading your workspace..." />;
+  }
+
   return (
     <SidebarProvider>
       {/* Sidebar */}
@@ -44,4 +108,3 @@ export default function AppLayout() {
     </SidebarProvider>
   );
 }
-
