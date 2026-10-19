@@ -218,7 +218,7 @@ const findSummaryBill = async (branchId, billNo) => {
 
   const [first] = summRows;
 
-  const [member, status] = await Promise.all([
+  const [member, status, balanceRow] = await Promise.all([
     db("members as m")
       .leftJoin("users as t", "t.id", "m.assigned_trainer_id")
       .where({ "m.id": first.member_id, "m.branch_id": branchId })
@@ -237,7 +237,18 @@ const findSummaryBill = async (branchId, billNo) => {
       .leftJoin("payments as p", "p.id", "ps.payment_id")
       .where({ "ps.branch_id": branchId, "ps.subs_billno": String(billNo) })
       .orderBy("ps.id", "desc")
-      .first("ps.payments_status", "ps.updated_at", "p.payment_name"),
+      .first(
+        "ps.payments_status",
+        "ps.paid_price",
+        "ps.change",
+        "ps.updated_at",
+        "p.payment_name",
+      ),
+    // Part payments saved for the bill: how many rows and what they add up to.
+    db("subs_balance")
+      .where({ branch_id: branchId, bill_no: billNo })
+      .whereNull("deleted_at")
+      .first(db.raw("COUNT(*) AS records"), db.raw("SUM(paid_amount) AS paid")),
   ]);
 
   const discountTypes = [
@@ -294,6 +305,16 @@ const findSummaryBill = async (branchId, billNo) => {
 
   const completed = status?.payments_status === "completed";
 
+  // Balance (minor units): only when the bill has a subs_balance record and the
+  // sum of its paid_amount is still less than the bill's total_price. Otherwise
+  // (no record, or fully paid) it is 0.
+  const hasBalanceRecord = Number(balanceRow?.records ?? 0) > 0;
+  const balancePaid = Number(balanceRow?.paid ?? 0);
+  const balance =
+    hasBalanceRecord && balancePaid < summary.total_price
+      ? summary.total_price - balancePaid
+      : 0;
+
   return {
     branch,
     summary,
@@ -303,6 +324,9 @@ const findSummaryBill = async (branchId, billNo) => {
       status: status?.payments_status ?? "draft",
       method: status?.payment_name ?? null,
       paid_on: completed ? status.updated_at : null,
+      paid_price: Number(status?.paid_price ?? 0),
+      change: Number(status?.change ?? 0),
+      balance,
     },
     issued_by: first.issued_by ?? null,
   };
