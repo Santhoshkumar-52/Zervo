@@ -244,11 +244,12 @@ const findSummaryBill = async (branchId, billNo) => {
         "ps.updated_at",
         "p.payment_name",
       ),
-    // Part payments saved for the bill: how many rows and what they add up to.
+    // The bill's first subs_balance record (undefined when it has none).
     db("subs_balance")
       .where({ branch_id: branchId, bill_no: billNo })
       .whereNull("deleted_at")
-      .first(db.raw("COUNT(*) AS records"), db.raw("SUM(paid_amount) AS paid")),
+      .orderBy("id")
+      .first("paid_amount"),
   ]);
 
   const discountTypes = [
@@ -305,14 +306,12 @@ const findSummaryBill = async (branchId, billNo) => {
 
   const completed = status?.payments_status === "completed";
 
-  // Balance (minor units): only when the bill has a subs_balance record and the
-  // sum of its paid_amount is still less than the bill's total_price. Otherwise
-  // (no record, or fully paid) it is 0.
-  const hasBalanceRecord = Number(balanceRow?.records ?? 0) > 0;
-  const balancePaid = Number(balanceRow?.paid ?? 0);
+  // Balance (minor units): only when the bill has a subs_balance record and its
+  // paid_amount is less than the bill's total_price. Otherwise (no record, or
+  // fully paid) it is 0.
   const balance =
-    hasBalanceRecord && balancePaid < summary.total_price
-      ? summary.total_price - balancePaid
+    balanceRow && Number(balanceRow.paid_amount) < summary.total_price
+      ? summary.total_price - Number(balanceRow.paid_amount)
       : 0;
 
   return {
@@ -332,11 +331,117 @@ const findSummaryBill = async (branchId, billNo) => {
   };
 };
 
+const METHOD_KEYS = ["cash", "card", "upi"];
+
+// Payment figures for a list of bills ({ bill_no, total_minor }), keyed by
+// String(bill_no). All amounts are minor units.
+//   status       payments_status of the bill (draft when none)
+//   paid_price / change   as saved on payments_status
+//   amounts      what was actually received, per method: paid_price minus the
+//                change given back, under cash / card / upi (any other method
+//                goes under other); overall is their sum. Only completed or
+//                pending bills with a payment method count; draft and
+//                cancelled bills are 0.
+//   balance      the bill's first subs_balance record: total_minor minus its
+//                paid_amount while that is still less than the total, else 0
+//   balance_status  "due" when a balance is owed, otherwise "clear"
+// All payments_status rows of a bill are updated together, so the newest row
+// speaks for the bill (read in id order, the last one wins).
+const getPaymentDetails = async (branchId, bills) => {
+  const details = new Map();
+
+  if (!bills.length) return details;
+
+  const billNos = bills.map((bill) => bill.bill_no);
+
+  const [statusRows, balanceRows] = await Promise.all([
+    db("payments_status as ps")
+      .leftJoin("payments as p", "p.id", "ps.payment_id")
+      .where("ps.branch_id", branchId)
+      .whereIn("ps.subs_billno", billNos.map(String))
+      .orderBy("ps.id")
+      .select(
+        "ps.subs_billno",
+        "ps.payments_status",
+        "ps.paid_price",
+        "ps.change",
+        "ps.updated_at",
+        "p.payment_name",
+      ),
+    db("subs_balance")
+      .where("branch_id", branchId)
+      .whereIn("bill_no", billNos)
+      .whereNull("deleted_at")
+      .orderBy("id")
+      .select("bill_no", "paid_amount"),
+  ]);
+
+  const statusByBill = new Map(
+    statusRows.map((row) => [String(row.subs_billno), row]),
+  );
+
+  // First record of each bill only.
+  const balanceByBill = new Map();
+
+  balanceRows.forEach((row) => {
+    const key = String(row.bill_no);
+
+    if (!balanceByBill.has(key)) balanceByBill.set(key, row);
+  });
+
+  bills.forEach((bill) => {
+    const key = String(bill.bill_no);
+    const totalMinor = Number(bill.total_minor);
+    const status = statusByBill.get(key);
+    const balanceRow = balanceByBill.get(key);
+
+    const paidPrice = Number(status?.paid_price ?? 0);
+    const change = Number(status?.change ?? 0);
+
+    // Money only counts as received once a payment method is set on a
+    // completed or pending bill. Draft and cancelled bills (and any paid_price
+    // left on them) add nothing.
+    const isReceived =
+      Boolean(status?.payment_name) &&
+      ["completed", "pending"].includes(status.payments_status);
+    const received = isReceived ? Math.max(paidPrice - change, 0) : 0;
+
+    const methodName = status?.payment_name?.trim().toLowerCase();
+    const methodKey = METHOD_KEYS.includes(methodName) ? methodName : "other";
+    const amounts = { cash: 0, card: 0, upi: 0, other: 0, overall: received };
+
+    amounts[methodKey] = received;
+
+    const balance =
+      balanceRow && Number(balanceRow.paid_amount) < totalMinor
+        ? totalMinor - Number(balanceRow.paid_amount)
+        : 0;
+
+    details.set(key, {
+      total_minor: totalMinor,
+      payment: {
+        status: status?.payments_status ?? "draft",
+        method: status?.payment_name ?? null,
+        paid_on:
+          status?.payments_status === "completed" ? status.updated_at : null,
+        paid_price: paidPrice,
+        change,
+        amounts,
+        balance,
+        balance_status: balance > 0 ? "due" : "clear",
+      },
+    });
+  });
+
+  return details;
+};
 // One page of the bills whose bill date falls between startDate and endDate
 // (both included), newest first. A bill is one subs_summ row per item, so the
 // rows are grouped by bill_no. Search matches the bill no, the member's
 // member_Id and the member's phone. Scoped to the branch.
-// Returns { bills, total } where total counts every matching bill.
+// Returns { bills, totals, total }: total counts every matching bill, and
+// totals adds up the money of every matching bill (all pages), see
+// getPaymentDetails for how each bill's payment is worked out.
 const findSubscriptionList = async (
   branchId,
   { startDate, endDate, search, page, limit },
@@ -394,53 +499,50 @@ const findSubscriptionList = async (
     .limit(limit)
     .offset((page - 1) * limit);
 
-  // All payments_status rows of a bill are updated together, so the newest
-  // row speaks for the bill (read in id order, the last one wins).
-  const statusRows = rows.length
-    ? await db("payments_status as ps")
-        .leftJoin("payments as p", "p.id", "ps.payment_id")
-        .where("ps.branch_id", branchId)
-        .whereIn(
-          "ps.subs_billno",
-          rows.map((row) => String(row.bill_no)),
-        )
-        .orderBy("ps.id")
-        .select(
-          "ps.subs_billno",
-          "ps.payments_status",
-          "ps.updated_at",
-          "p.payment_name",
-        )
-    : [];
+  // Payment figures are worked out for every bill in the range (not only this
+  // page) so the totals cover the whole result.
+  const allBills = await base
+    .clone()
+    .groupBy("s.bill_no")
+    .select("s.bill_no", db.raw("SUM(s.total_price) as total_minor"));
 
-  const statusByBill = new Map(
-    statusRows.map((row) => [String(row.subs_billno), row]),
-  );
+  const details = await getPaymentDetails(branchId, allBills);
 
-  const bills = rows.map((row) => {
-    const status = statusByBill.get(String(row.bill_no));
-    const completed = status?.payments_status === "completed";
+  const totals = {
+    total_amount: 0,
+    total_cash: 0,
+    total_card: 0,
+    total_upi: 0,
+    total_other: 0,
+    total_paid: 0,
+    total_balance: 0,
+  };
 
-    return {
-      bill_no: row.bill_no,
-      bill_date: row.bill_date,
-      member: {
-        id: row.member_id,
-        member_id: row.member_code ?? null,
-        name: [row.first_name, row.last_name].filter(Boolean).join(" ") || null,
-        phone: row.phone ?? null,
-      },
-      item_count: Number(row.item_count),
-      total_minor: Number(row.total_minor),
-      payment: {
-        status: status?.payments_status ?? "draft",
-        method: status?.payment_name ?? null,
-        paid_on: completed ? status.updated_at : null,
-      },
-    };
-  });
+  for (const { total_minor: billTotal, payment } of details.values()) {
+    totals.total_amount += billTotal;
+    totals.total_cash += payment.amounts.cash;
+    totals.total_card += payment.amounts.card;
+    totals.total_upi += payment.amounts.upi;
+    totals.total_other += payment.amounts.other;
+    totals.total_paid += payment.amounts.overall;
+    totals.total_balance += payment.balance;
+  }
 
-  return { bills, total: Number(total) };
+  const bills = rows.map((row) => ({
+    bill_no: row.bill_no,
+    bill_date: row.bill_date,
+    member: {
+      id: row.member_id,
+      member_id: row.member_code ?? null,
+      name: [row.first_name, row.last_name].filter(Boolean).join(" ") || null,
+      phone: row.phone ?? null,
+    },
+    item_count: Number(row.item_count),
+    total_minor: Number(row.total_minor),
+    payment: details.get(String(row.bill_no)).payment,
+  }));
+
+  return { bills, totals, total: Number(total) };
 };
 
 module.exports = {

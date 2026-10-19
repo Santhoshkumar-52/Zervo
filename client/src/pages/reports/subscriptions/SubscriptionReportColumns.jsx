@@ -7,6 +7,29 @@ import { formatMoney } from "@/utils/currency";
 
 const EMPTY = "\u2014";
 
+// Same pill shape as PaymentStatusBadge: red while a balance is owed, green
+// once it is clear. The dot and the wording mean colour is never the only
+// signal.
+const BALANCE_TONES = {
+  due: "bg-destructive/10 text-destructive dark:bg-destructive/20",
+  clear: "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400",
+};
+
+function BalanceStatusBadge({ payment = {} }) {
+  const isDue = payment.balance_status === "due";
+
+  return (
+    <span
+      className={`inline-flex w-fit items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium [print-color-adjust:exact] ${
+        isDue ? BALANCE_TONES.due : BALANCE_TONES.clear
+      }`}
+    >
+      <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />
+      {isDue ? `Due ${formatMoney(payment.balance)}` : "Clear"}
+    </span>
+  );
+}
+
 // Handlers: { onView(bill) }
 export const getSubscriptionReportColumns = ({ onView } = {}) => [
   {
@@ -17,6 +40,13 @@ export const getSubscriptionReportColumns = ({ onView } = {}) => [
     accessorKey: "bill_date",
     header: "Bill date",
     cell: ({ row }) => formatDate(row.original.bill_date),
+  },
+  {
+    id: "payment_status",
+    header: "Payment status",
+    cell: ({ row }) => (
+      <PaymentStatusBadge status={row.original.payment.status} />
+    ),
   },
   {
     id: "member",
@@ -45,16 +75,14 @@ export const getSubscriptionReportColumns = ({ onView } = {}) => [
     cell: ({ row }) => formatMoney(row.original.total_minor),
   },
   {
+    id: "balance_status",
+    header: "Balance status",
+    cell: ({ row }) => <BalanceStatusBadge payment={row.original.payment} />,
+  },
+  {
     id: "payment_method",
     header: "Method",
     cell: ({ row }) => row.original.payment.method || EMPTY,
-  },
-  {
-    id: "payment_status",
-    header: "Status",
-    cell: ({ row }) => (
-      <PaymentStatusBadge status={row.original.payment.status} />
-    ),
   },
   {
     id: "actions",

@@ -353,6 +353,9 @@ const getSummaryBill = async (req, res) => {
 // Lists the logged-in user's branch bills, one row per
 // bill, newest first. page defaults to 1 and limit to 10 (max 100); search
 // matches the bill no, the member's member_Id or the member's phone.
+// Each bill carries its payment status, balance status and what was received
+// per method (cash, card, upi); `totals` adds the same up over every matching
+// bill, not just the page. Money is in minor units.
 const getSubscriptionList = async (req, res) => {
   try {
     const parsed = listSubscriptionsSchema.safeParse({
@@ -380,7 +383,7 @@ const getSubscriptionList = async (req, res) => {
 
     const search = req.query.search?.trim() || "";
 
-    const { bills, total } = await findSubscriptionList(branchId, {
+    const { bills, totals, total } = await findSubscriptionList(branchId, {
       startDate: parsed.data.start_date,
       endDate: parsed.data.end_date,
       search,
@@ -394,6 +397,7 @@ const getSubscriptionList = async (req, res) => {
       res,
       {
         bills,
+        totals,
         pagination: {
           page,
           limit,

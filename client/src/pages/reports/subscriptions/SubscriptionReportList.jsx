@@ -10,6 +10,7 @@ import DataTable from "@/components/additonal/Datatable/DataTable";
 import { Label } from "@/components/ui/label";
 
 import { getSubscriptionReportColumns } from "./SubscriptionReportColumns";
+import SubscriptionReportTotals from "./SubscriptionReportTotals";
 
 const EMPTY_STATE = {
   icon: FileBarChart,
@@ -110,6 +111,7 @@ function SubscriptionReportList() {
 
   const rows = canFetch ? (data?.bills ?? NO_ROWS) : NO_ROWS;
   const total = canFetch ? (data?.pagination.total ?? 0) : 0;
+  const totals = canFetch ? data?.totals : undefined;
 
   // Any change to the date range starts again from the first page.
   const goToFirstPage = () =>
@@ -163,6 +165,12 @@ function SubscriptionReportList() {
             End date cannot be before the start date.
           </p>
         )}
+
+        <SubscriptionReportTotals
+          totals={totals}
+          billCount={total}
+          className="ml-auto"
+        />
       </div>
 
       {isError && (

@@ -27,7 +27,8 @@ import { createMoneyFormatter } from "./billHelpers";
  *               start_date, end_date, base_price, discount_type,
  *               discount_price, discount_rate, discounted_price,
  *               tax_percent, tax_amount, total_price }],                // subs_items
- *   payment: { status, method, paid_on },   // payments_status + payments
+ *   payment: { status, method, paid_on,     // payments_status + payments
+ *              paid_price, change, balance }, // balance: still owed (red)
  *   issued_by,                              // users.full_name of subs_summ.created_by
  * }
  * Money is in paise (minor units), like the database.
@@ -51,6 +52,7 @@ function SummaryBill({
 
   const { branch = {}, summary = {}, member, items = [], payment = {}, issued_by } = bill;
   const status = payment.status ?? "draft";
+  const indicatebalance = payment.balance ? "pending":"completed";
 
   return (
     <div className={`mx-auto w-full max-w-4xl space-y-4 ${className}`}>
@@ -60,7 +62,11 @@ function SummaryBill({
         aria-label={`Summary bill ${summary.bill_no ?? ""}`}
         className="overflow-hidden rounded-2xl border bg-card text-card-foreground print:rounded-none print:border-0"
       >
-        <BillHeader branch={branch} summary={summary} status={status} />
+        <BillHeader
+          branch={branch}
+          summary={summary}
+          status={indicatebalance}
+        />
 
         <MembershipPeriod
           startDate={summary.start_date}
@@ -85,6 +91,7 @@ function SummaryBill({
         <div className="grid border-b md:grid-cols-2">
           <PriceSummary
             summary={summary}
+            payment={payment}
             status={status}
             money={money}
             className="md:order-2"

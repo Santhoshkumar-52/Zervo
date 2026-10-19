@@ -13,8 +13,16 @@ function Row({ label, children }) {
 
 // How the total was reached (subs_summ): price, discount, tax, total.
 // Rows that don't apply (no discount, no tax) are left out.
-function PriceSummary({ summary = {}, status, money, className = "" }) {
-  const { totalLabel } = getPaymentStatus(status);
+// Under the total: what was paid, the change handed back (cash only) and, in
+// red, the balance still owed. `payment` is { paid_price, change, balance }.
+function PriceSummary({ summary = {}, payment = {}, status, money, className = "" }) {
+  const paid = Number(payment.paid_price) || 0;
+  const change = Number(payment.change) || 0;
+  const balance = Number(payment.balance) || 0;
+
+  // "Total paid" would be wrong while something is still owed.
+  const totalLabel =
+    balance > 0 ? "Total" : getPaymentStatus(status).totalLabel;
 
   const discount = Number(summary.discount_price) || 0;
   const tax = Number(summary.tax_amount) || 0;
@@ -60,6 +68,25 @@ function PriceSummary({ summary = {}, status, money, className = "" }) {
             {money(summary.total_price)}
           </dd>
         </div>
+
+        {paid > 0 && <Row label="Paid">{money(paid)}</Row>}
+
+        {change > 0 && (
+          <div className="flex items-baseline justify-between gap-4 rounded-lg bg-muted px-4 py-3">
+            <dt className="text-sm font-medium">Change returned</dt>
+            <dd className="text-xl font-semibold tabular-nums">{money(change)}</dd>
+          </div>
+        )}
+
+        {balance > 0 && (
+          <div
+            role="alert"
+            className="flex items-baseline justify-between gap-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-destructive"
+          >
+            <dt className="text-sm font-semibold">Balance due</dt>
+            <dd className="text-xl font-bold tabular-nums">{money(balance)}</dd>
+          </div>
+        )}
       </dl>
     </section>
   );

@@ -81,6 +81,9 @@ export const sampleBill = {
     status: "completed", // draft | pending | cancelled | completed
     method: "UPI",
     paid_on: "2026-10-11T10:42:00",
+    paid_price: 800000,
+    change: 0,
+    balance: 67300, // total 867300 - paid 800000
   },
 
   issued_by: "Meera Nair",
