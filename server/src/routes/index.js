@@ -11,6 +11,7 @@ const discountRoutes = require("./discount/discountRoutes");
 const subscriptionRoutes = require("./subscription/subscriptionRoutes");
 const paymentRoutes = require("./payment/paymentRoutes");
 const reportRoutes = require("./report/reportRoutes");
+const initRoutes = require("./init/initRoutes");
 
 const router = express.Router();
 
@@ -25,6 +26,7 @@ router.use("/discount", tokenVerify, discountRoutes);
 router.use("/subscription", tokenVerify, subscriptionRoutes);
 router.use("/payment", tokenVerify, paymentRoutes);
 router.use("/report", tokenVerify, reportRoutes);
+router.use("/init", tokenVerify, initRoutes);
 
 // Future feature routes
 // router.use("/users", userRoutes);
