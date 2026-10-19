@@ -107,21 +107,38 @@ const findBillRecords = async (branchId, billNo) => {
 // Saves the payment on every payments_status row of the bill: the method, the
 // amount paid, the change given back (minor units) and the resulting status
 // ("completed" when fully paid, "pending" otherwise).
+//
+// When hasBalance is true (the amount paid is less than the grand total) one
+// subs_balance row is inserted for the bill with what was paid; nothing is
+// inserted for a full or larger payment. Both tables change in one
+// transaction.
 const completePayment = (
   branchId,
   billNo,
-  { paymentId, paidPrice, changePrice, paymentsStatus },
+  { paymentId, paidPrice, changePrice, paymentsStatus, hasBalance },
   userId,
 ) =>
-  db("payments_status")
-    .where({ branch_id: branchId, subs_billno: String(billNo) })
-    .update({
-      payment_id: paymentId,
-      paid_price: paidPrice,
-      change: changePrice,
-      payments_status: paymentsStatus,
-      updated_by: userId,
-    });
+  db.transaction(async (trx) => {
+    await trx("payments_status")
+      .where({ branch_id: branchId, subs_billno: String(billNo) })
+      .update({
+        payment_id: paymentId,
+        paid_price: paidPrice,
+        change: changePrice,
+        payments_status: paymentsStatus,
+        updated_by: userId,
+      });
+
+    if (hasBalance) {
+      await trx("subs_balance").insert({
+        bill_no: billNo,
+        branch_id: branchId,
+        paid_amount: paidPrice,
+        created_by: userId,
+        updated_by: userId,
+      });
+    }
+  });
 
 // The shape the client table reads.
 const toBill = (billNo, items) => ({

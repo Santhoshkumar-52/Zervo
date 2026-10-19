@@ -287,14 +287,17 @@ const completeBillPayment = async (req, res) => {
       );
     }
 
-    const paymentsStatus = paidPrice >= grandTotal ? "completed" : "pending";
+    const paymentsStatus = "completed";
     const changePrice =
       isCash && paidPrice > grandTotal ? paidPrice - grandTotal : 0;
+
+    // Not fully paid: the unpaid rest is recorded in subs_balance.
+    const hasBalance = paidPrice < grandTotal;
 
     await completePayment(
       branchId,
       billNo,
-      { paymentId, paidPrice, changePrice, paymentsStatus },
+      { paymentId, paidPrice, changePrice, paymentsStatus, hasBalance },
       userId,
     );
 
