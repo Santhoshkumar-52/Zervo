@@ -12,6 +12,7 @@ const subscriptionRoutes = require("./subscription/subscriptionRoutes");
 const paymentRoutes = require("./payment/paymentRoutes");
 const reportRoutes = require("./report/reportRoutes");
 const initRoutes = require("./init/initRoutes");
+const dashboardRoutes = require("./dashboard/dashboardRoutes");
 
 const router = express.Router();
 
@@ -27,11 +28,11 @@ router.use("/subscription", tokenVerify, subscriptionRoutes);
 router.use("/payment", tokenVerify, paymentRoutes);
 router.use("/report", tokenVerify, reportRoutes);
 router.use("/init", tokenVerify, initRoutes);
+router.use("/dashboard", tokenVerify, dashboardRoutes);
 
 // Future feature routes
 // router.use("/users", userRoutes);
 // router.use("/members", memberRoutes);
 // router.use("/attendance", attendanceRoutes);
-// router.use("/dashboard", dashboardRoutes);
 
 module.exports = router;

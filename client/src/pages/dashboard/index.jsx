@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LayoutDashboard } from "lucide-react";
+import { BarChart3, LineChart, PieChart } from "lucide-react";
 
 import BranchFilter from "@/components/additonal/BranchFilter";
 import DateRangeFilter, {
@@ -15,6 +15,59 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+
+// One entry per chart. `span` holds the full Tailwind classes per breakpoint
+// (kept as complete strings so Tailwind can detect them).
+//   mobile  : 1 column, everything stacked
+//   md      : 2 columns
+//   xl      : 3 columns -> memberships 2fr, revenue 1fr, attendance full row
+const CHARTS = [
+  {
+    key: "memberships",
+    span: "md:col-span-2 xl:col-span-2",
+    title: "Memberships",
+    description: "New and renewed memberships",
+    icon: PieChart,
+  },
+  {
+    key: "revenue",
+    span: "md:col-span-1 xl:col-span-1",
+    title: "Revenue",
+    description: "Collections over the period",
+    icon: LineChart,
+  },
+  {
+    key: "attendance",
+    span: "md:col-span-1 xl:col-span-3",
+    title: "Attendance",
+    description: "Check-ins over the period",
+    icon: BarChart3,
+  },
+];
+
+function ChartCard({ title, description, icon: Icon, range }) {
+  return (
+    <Card className="flex h-full min-h-0 flex-col">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Icon className="size-5" />
+          {title}
+        </CardTitle>
+
+        <CardDescription>
+          {description} · {range.startDate || "-"} to {range.endDate || "-"}
+        </CardDescription>
+      </CardHeader>
+
+      <CardContent className="flex min-h-0 flex-1">
+        {/* Chart goes here - fills the remaining card height */}
+        <div className="flex min-h-64 w-full flex-1 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
+          Chart coming soon
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 function Dashboard() {
   // { preset, startDate, endDate } - use startDate / endDate for the API.
@@ -43,24 +96,13 @@ function Dashboard() {
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <LayoutDashboard className="size-5" />
-            Overview
-          </CardTitle>
-
-          <CardDescription>
-            Showing {range.startDate || "-"} to {range.endDate || "-"}
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            This page is under construction.
-          </p>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {CHARTS.map(({ key, span, ...chart }) => (
+          <section key={key} className={`min-w-0 ${span}`}>
+            <ChartCard range={range} {...chart} />
+          </section>
+        ))}
+      </div>
     </div>
   );
 }
