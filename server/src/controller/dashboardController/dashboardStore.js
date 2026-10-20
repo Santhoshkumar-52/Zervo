@@ -17,7 +17,11 @@ const findSubscriptionTrend = async (branchId, { startDate, endDate }) => {
     .whereExists(function hasPaidStatus() {
       this.select(db.raw("1"))
         .from("payments_status as ps")
-        .whereRaw("ps.subs_billno = CAST(s.bill_no AS CHAR)")
+        // CAST gives the connection collation; match the column's own collation so
+        // MySQL does not reject the "=" (ER_CANT_AGGREGATE_2COLLATIONS).
+        .whereRaw(
+          "ps.subs_billno = CAST(s.bill_no AS CHAR) COLLATE utf8mb4_0900_ai_ci",
+        )
         .whereRaw("ps.branch_id = s.branch_id")
         .whereIn("ps.payments_status", ["completed", "pending"]);
     })

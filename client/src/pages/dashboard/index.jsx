@@ -1,6 +1,9 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { BarChart3, LineChart, PieChart } from "lucide-react";
 
+import { getDashboard } from "@/api/dashboard/dashboardApi";
+import { AreaChart } from "@/components/additonal/AreaChart";
 import BranchFilter from "@/components/additonal/BranchFilter";
 import DateRangeFilter, {
   getDateRangeValue,
@@ -45,7 +48,7 @@ const CHARTS = [
   },
 ];
 
-function ChartCard({ title, description, icon: Icon, range }) {
+function ChartCard({ title, description, icon: Icon, range, children }) {
   return (
     <Card className="flex h-full min-h-0 flex-col">
       <CardHeader>
@@ -60,12 +63,22 @@ function ChartCard({ title, description, icon: Icon, range }) {
       </CardHeader>
 
       <CardContent className="flex min-h-0 flex-1">
-        {/* Chart goes here - fills the remaining card height */}
-        <div className="flex min-h-64 w-full flex-1 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
-          Chart coming soon
-        </div>
+        {/* Chart fills the remaining card height */}
+        {children ?? (
+          <div className="flex min-h-64 w-full flex-1 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
+            Chart coming soon
+          </div>
+        )}
       </CardContent>
     </Card>
+  );
+}
+
+function ChartMessage({ children }) {
+  return (
+    <div className="flex min-h-64 w-full flex-1 items-center justify-center text-sm text-muted-foreground">
+      {children}
+    </div>
   );
 }
 
@@ -80,6 +93,29 @@ function Dashboard() {
   // their own branch. Use `branchId` for the API.
   const userBranchId = useAuthStore((state) => state.user?.branchId);
   const [branchId, setBranchId] = useState(userBranchId ?? null);
+
+  // GET /api/dashboard - refetches whenever the date range changes.
+  // Resolves with { subscriptions: [{ date, value }] }.
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["dashboard", range.startDate, range.endDate],
+    queryFn: () =>
+      getDashboard({ start_date: range.startDate, end_date: range.endDate }),
+    enabled: Boolean(range.startDate && range.endDate),
+  });
+
+  // Content per chart key. Charts without an entry keep the placeholder.
+  const chartContent = {
+    memberships: isLoading ? (
+      <ChartMessage>Loading subscriptions...</ChartMessage>
+    ) : isError ? (
+      <ChartMessage>Could not load subscriptions.</ChartMessage>
+    ) : (
+      <AreaChart
+        data={data?.subscriptions ?? []}
+        valueLabel="Subscriptions"
+      />
+    ),
+  };
 
   return (
     <div className="space-y-6">
@@ -99,7 +135,9 @@ function Dashboard() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {CHARTS.map(({ key, span, ...chart }) => (
           <section key={key} className={`min-w-0 ${span}`}>
-            <ChartCard range={range} {...chart} />
+            <ChartCard range={range} {...chart}>
+              {chartContent[key]}
+            </ChartCard>
           </section>
         ))}
       </div>
