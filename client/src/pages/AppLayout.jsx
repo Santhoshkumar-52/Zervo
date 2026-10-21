@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { ReactLenis, useLenis } from "lenis/react";
 import {
   SidebarInset,
   SidebarProvider,
@@ -13,6 +14,30 @@ import Spinner from "@/components/additonal/Spinner";
 import { useAuthStore } from "@/store/auth";
 import { useInitStore } from "@/store/init";
 import { notifyError } from "@/utils/notification";
+
+// Smooth scrolling for the app shell (window scroll only).
+// - allowNestedScroll: tables, sidebar, charts and popup lists keep native scrolling
+// - syncTouch off: touch devices keep their own momentum scrolling
+// - reduced-motion preference is respected by Lenis by default
+const LENIS_OPTIONS = {
+  lerp: 0.1,
+  smoothWheel: true,
+  syncTouch: false,
+  allowNestedScroll: true,
+  anchors: false,
+};
+
+// Start each page at the top after a route change (no ScrollRestoration in this app).
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  const lenis = useLenis();
+
+  useEffect(() => {
+    lenis?.scrollTo(0, { immediate: true });
+  }, [pathname, lenis]);
+
+  return null;
+}
 
 // Clear, user-facing message for a failed init load.
 const getInitErrorMessage = (error) => {
@@ -77,34 +102,37 @@ export default function AppLayout() {
   }
 
   return (
-    <SidebarProvider>
-      {/* Sidebar */}
-      <AppSidebar />
+    <ReactLenis root options={LENIS_OPTIONS}>
+      <ScrollToTop />
+      <SidebarProvider>
+        {/* Sidebar */}
+        <AppSidebar />
 
-      {/* Main area */}
-      <SidebarInset className="min-w-0">
-        {/* Top header */}
-        <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur">
-          <SidebarTrigger className="-ml-1" />
+        {/* Main area */}
+        <SidebarInset className="min-w-0">
+          {/* Top header */}
+          <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur">
+            <SidebarTrigger className="-ml-1" />
 
-          <div className="h-5 w-px bg-border" />
+            <div className="h-5 w-px bg-border" />
 
-          {/* Branch logo + name */}
-          <BranchBrand subtitle="Management System" />
+            {/* Branch logo + name */}
+            <BranchBrand subtitle="Management System" />
 
-          {/* Color + light/dark picker (sets class on <html>) */}
-          <div className="ml-auto">
-            <ThemeSwitcher />
-          </div>
-        </header>
+            {/* Color + light/dark picker (sets class on <html>) */}
+            <div className="ml-auto">
+              <ThemeSwitcher />
+            </div>
+          </header>
 
-        {/* Page */}
-        <main className="flex-1">
-          <div className="mx-auto w-full max-w-[1600px] p-4 md:p-6">
-            <Outlet />
-          </div>
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
+          {/* Page */}
+          <main className="flex-1">
+            <div className="mx-auto w-full max-w-[1600px] p-4 md:p-6">
+              <Outlet />
+            </div>
+          </main>
+        </SidebarInset>
+      </SidebarProvider>
+    </ReactLenis>
   );
 }
