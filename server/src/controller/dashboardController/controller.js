@@ -4,6 +4,7 @@ const {
   formatZodError,
 } = require("../reportController/schema");
 const { findSubscriptionTrend } = require("./dashboardStore");
+const { buildTrend } = require("./trend");
 
 // ---------------------------------------------------------------------------
 // Loaders: one promise-returning function per dashboard widget. Each gets
@@ -11,13 +12,18 @@ const { findSubscriptionTrend } = require("./dashboardStore");
 // an error. Add a new loader here and register it in `loaders` below.
 // ---------------------------------------------------------------------------
 
-// Subscriptions per day: [{ date, value }]
-const loadSubscriptions = (params) => findSubscriptionTrend(params.branchId, params);
+// Turns a per-day query into a chart loader. `findDailyRows` is a store
+// function (branchId, { startDate, endDate }) that resolves with one
+// { date, value } row per day. The rows are grouped by day, week, month or
+// year depending on the length of the range (see trend.js).
+// -> { group_by, points: [{ label, start_date, end_date, value }] }
+const trendLoader = (findDailyRows) => async (params) =>
+  buildTrend(await findDailyRows(params.branchId, params), params);
 
 // key -> loader. The key becomes the property name in the response.
 const loaders = {
-  subscriptions: loadSubscriptions,
-  // members: loadMembers,   <- add more here
+  subscriptions: trendLoader(findSubscriptionTrend),
+  // revenue: trendLoader(findRevenueTrend),   <- add more charts here
 };
 
 // GET /api/dashboard?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD
@@ -26,7 +32,7 @@ const loaders = {
 // Runs every loader together for the logged-in user's branch. Promise.all only
 // resolves when ALL of them succeed; if any one rejects, the whole request
 // fails (nothing partial is sent).
-// -> { subscriptions: [{ date, value }] }
+// -> { subscriptions: { group_by, points: [{ label, start_date, end_date, value }] } }
 const getDashboard = async (req, res) => {
   try {
     const parsed = reportRangeSchema.safeParse({
@@ -53,7 +59,7 @@ const getDashboard = async (req, res) => {
 
     const results = await Promise.all(keys.map((key) => loaders[key](params)));
 
-    // Rebuild { subscriptions: [...], ... } from the results (same order as keys)
+    // Rebuild { subscriptions: {...}, ... } from the results (same order as keys)
     const data = keys.reduce((acc, key, index) => {
       acc[key] = results[index];
       return acc;

@@ -17,11 +17,10 @@ const findSubscriptionTrend = async (branchId, { startDate, endDate }) => {
     .whereExists(function hasPaidStatus() {
       this.select(db.raw("1"))
         .from("payments_status as ps")
-        // CAST gives the connection collation; match the column's own collation so
-        // MySQL does not reject the "=" (ER_CANT_AGGREGATE_2COLLATIONS).
-        .whereRaw(
-          "ps.subs_billno = CAST(s.bill_no AS CHAR) COLLATE utf8mb4_0900_ai_ci",
-        )
+        // subs_billno is text and bill_no is a number, so compare them as numbers.
+        // No collation is involved, so this runs the same on every MySQL and
+        // MariaDB version. subs_billno always holds a whole number (String(billNo)).
+        .whereRaw("CAST(ps.subs_billno AS UNSIGNED) = s.bill_no")
         .whereRaw("ps.branch_id = s.branch_id")
         .whereIn("ps.payments_status", ["completed", "pending"]);
     })

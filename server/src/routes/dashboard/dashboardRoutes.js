@@ -6,7 +6,9 @@ const router = express.Router();
 
 // GET /api/dashboard?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD
 //     body: { start_date, end_date } also works (both days included)
-//     -> { subscriptions: [{ date, value }] } for the logged-in user's branch
+//     -> { subscriptions: { group_by, points: [{ label, start_date, end_date, value }] } }
+//        for the logged-in user's branch. The points are grouped by day, week, month
+//        or year depending on the length of the range.
 router.get("/", getDashboard);
 
 module.exports = router;

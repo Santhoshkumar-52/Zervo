@@ -1,22 +1,35 @@
-// Turns per-day numbers into the points of a dashboard chart.
+// Groups per-day numbers into the points of a dashboard chart.
 //
-// The server decides how to group the days from the length of the range, so
-// the chart always has a readable number of points:
+// The server picks the grouping from the length of the range, so every chart
+// gets a readable number of points (roughly 5 to 30):
 //
-//   up to 14 days   -> "day"    Last 7 days, Last 14 days, Today ...
-//   up to ~3 months -> "week"   This month, most custom ranges
-//   longer          -> "month"  This year, long custom ranges
+//   up to 31 days   -> "day"    Today, Last 7 days, Last 14 days, This month
+//   up to 120 days  -> "week"   Last 3 months, most custom ranges
+//   up to 548 days  -> "month"  Last 6 months, This year, Last 12 months
+//   longer          -> "year"   Last 2 years and more
 //
-// Every bucket in the range is returned, also the empty ones (bills = 0), so
-// the x axis has no gaps.
+// Every bucket in the range is returned, also the empty ones (value 0), so the
+// x axis has no gaps. The first and last bucket are cut at the range edges, so
+// the points always add up to exactly the selected period.
+//
+// Works for any chart: load one { date, value } row per day (days without data
+// may be missing), then group them. Counts and amounts both work, because a
+// bucket is simply the sum of its days.
+//
+//   buildTrend(dailyRows, { startDate, endDate })
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-// Longest range (in days) that is still shown per day / per week.
-const MAX_DAYS_FOR_DAY = 14;
-const MAX_DAYS_FOR_WEEK = 92;
-
 const WEEK_DAYS = 7;
+
+// Longest range (in days) shown with each grouping, shortest grouping first.
+// A range longer than the last limit is grouped by year.
+const GROUP_LIMITS = [
+  { groupBy: "day", maxDays: 31 },
+  { groupBy: "week", maxDays: 120 },
+  { groupBy: "month", maxDays: 548 },
+];
+
+const LONGEST_GROUP = "year";
 
 const MONTHS = [
   "Jan",
@@ -33,10 +46,13 @@ const MONTHS = [
   "Dec",
 ];
 
-// "YYYY-MM-DD" <-> UTC milliseconds. UTC keeps the maths free of timezone and
-// daylight saving shifts.
-const toMs = (value) => {
-  const [year, month, day] = value.split("-").map(Number);
+// ---------------------------------------------------------------------------
+// Dates. "YYYY-MM-DD" strings are turned into UTC milliseconds, which keeps the
+// maths free of timezone and daylight saving shifts.
+// ---------------------------------------------------------------------------
+
+const toMs = (dateString) => {
+  const [year, month, day] = dateString.split("-").map(Number);
 
   return Date.UTC(year, month - 1, day);
 };
@@ -45,15 +61,24 @@ const toDateString = (ms) => new Date(ms).toISOString().slice(0, 10);
 
 const addDays = (ms, days) => ms + days * DAY_MS;
 
-const pad = (number) => String(number).padStart(2, "0");
-
-// Last day of the month that `ms` falls in.
-const endOfMonthMs = (ms) => {
+const endOfMonth = (ms) => {
   const date = new Date(ms);
 
   return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0);
 };
 
+const endOfYear = (ms) => Date.UTC(new Date(ms).getUTCFullYear(), 11, 31);
+
+const countDays = (startDate, endDate) =>
+  Math.round((toMs(endDate) - toMs(startDate)) / DAY_MS) + 1;
+
+// ---------------------------------------------------------------------------
+// Labels for the x axis.
+// ---------------------------------------------------------------------------
+
+const pad = (number) => String(number).padStart(2, "0");
+
+// "05 Oct"
 const dayLabel = (ms) => {
   const date = new Date(ms);
 
@@ -77,28 +102,56 @@ const weekLabel = (startMs, endMs) => {
 };
 
 // "Oct", or "Oct 2026" when the range covers more than one year.
-const monthLabel = (ms, withYear) => {
+const monthLabel = (ms, spansYears) => {
   const date = new Date(ms);
   const name = MONTHS[date.getUTCMonth()];
 
-  return withYear ? `${name} ${date.getUTCFullYear()}` : name;
+  return spansYears ? `${name} ${date.getUTCFullYear()}` : name;
 };
 
-const countDays = (startDate, endDate) =>
-  Math.round((toMs(endDate) - toMs(startDate)) / DAY_MS) + 1;
+// "2026"
+const yearLabel = (ms) => String(new Date(ms).getUTCFullYear());
 
-// "day" | "week" | "month" for a range (both days included).
+// ---------------------------------------------------------------------------
+// Groupings. To add one, add an entry here and a row in GROUP_LIMITS.
+//   end    last day of the bucket that starts at `startMs`
+//   label  text for the x axis (receives the bucket as cut by the range)
+//
+// A week is 7 days counted from the first day of the range (not Monday to
+// Sunday), so every week is the same size and the chart has no false dips.
+// ---------------------------------------------------------------------------
+
+const GROUPINGS = {
+  day: {
+    end: (startMs) => startMs,
+    label: (startMs) => dayLabel(startMs),
+  },
+  week: {
+    end: (startMs) => addDays(startMs, WEEK_DAYS - 1),
+    label: (startMs, endMs) => weekLabel(startMs, endMs),
+  },
+  month: {
+    end: endOfMonth,
+    label: (startMs, _endMs, spansYears) => monthLabel(startMs, spansYears),
+  },
+  year: {
+    end: endOfYear,
+    label: (startMs) => yearLabel(startMs),
+  },
+};
+
+// "day" | "week" | "month" | "year" for a range (both days included).
 const getGroupBy = (startDate, endDate) => {
   const days = countDays(startDate, endDate);
+  const match = GROUP_LIMITS.find((limit) => days <= limit.maxDays);
 
-  if (days <= MAX_DAYS_FOR_DAY) return "day";
-  if (days <= MAX_DAYS_FOR_WEEK) return "week";
-
-  return "month";
+  return match ? match.groupBy : LONGEST_GROUP;
 };
 
-// The empty buckets of the range: [{ label, startMs, endMs }]
+// The empty points of the range, oldest first.
 const buildBuckets = (groupBy, startDate, endDate) => {
+  const { end, label } = GROUPINGS[groupBy];
+
   const startMs = toMs(startDate);
   const endMs = toMs(endDate);
   const spansYears =
@@ -107,21 +160,15 @@ const buildBuckets = (groupBy, startDate, endDate) => {
   const buckets = [];
 
   for (let cursor = startMs; cursor <= endMs; ) {
-    let bucketEnd;
-    let label;
+    // Cut the last bucket at the end of the range.
+    const bucketEnd = Math.min(end(cursor), endMs);
 
-    if (groupBy === "day") {
-      bucketEnd = cursor;
-      label = dayLabel(cursor);
-    } else if (groupBy === "week") {
-      bucketEnd = Math.min(addDays(cursor, WEEK_DAYS - 1), endMs);
-      label = weekLabel(cursor, bucketEnd);
-    } else {
-      bucketEnd = Math.min(endOfMonthMs(cursor), endMs);
-      label = monthLabel(cursor, spansYears);
-    }
-
-    buckets.push({ label, startMs: cursor, endMs: bucketEnd });
+    buckets.push({
+      label: label(cursor, bucketEnd, spansYears),
+      start_date: toDateString(cursor),
+      end_date: toDateString(bucketEnd),
+      value: 0,
+    });
 
     cursor = addDays(bucketEnd, 1);
   }
@@ -130,42 +177,31 @@ const buildBuckets = (groupBy, startDate, endDate) => {
 };
 
 /**
- * dailyRows: [{ date: "YYYY-MM-DD", bills, total }]  (days without bills may
- *            be missing)
+ * dailyRows: [{ date: "YYYY-MM-DD", value }]  one per day, days without data
+ *            may be missing
  *
  * Returns
  *   {
- *     group_by: "day" | "week" | "month",
+ *     group_by: "day" | "week" | "month" | "year",
  *     points: [{
  *       label,       text for the x axis
- *       start_date,  first day of the bucket (YYYY-MM-DD)
- *       end_date,    last day of the bucket (YYYY-MM-DD)
- *       value,       total amount of the bills, in paise (y axis)
- *       bills,       number of bills
+ *       start_date,  first day of the point (YYYY-MM-DD)
+ *       end_date,    last day of the point (YYYY-MM-DD)
+ *       value,       sum of the days inside the point
  *     }]
  *   }
  */
 const buildTrend = (dailyRows, { startDate, endDate }) => {
   const groupBy = getGroupBy(startDate, endDate);
+  const points = buildBuckets(groupBy, startDate, endDate);
 
-  const points = buildBuckets(groupBy, startDate, endDate).map((bucket) => ({
-    label: bucket.label,
-    start_date: toDateString(bucket.startMs),
-    end_date: toDateString(bucket.endMs),
-    value: 0,
-    bills: 0,
-  }));
+  dailyRows.forEach(({ date, value }) => {
+    // "YYYY-MM-DD" strings compare correctly as text.
+    const point = points.find(
+      (item) => date >= item.start_date && date <= item.end_date,
+    );
 
-  // Rows and points are both in date order, so one pass is enough.
-  let index = 0;
-
-  dailyRows.forEach((row) => {
-    while (index < points.length - 1 && row.date > points[index].end_date) {
-      index += 1;
-    }
-
-    points[index].value += row.total;
-    points[index].bills += row.bills;
+    if (point) point.value += Number(value) || 0;
   });
 
   return { group_by: groupBy, points };
@@ -173,6 +209,5 @@ const buildTrend = (dailyRows, { startDate, endDate }) => {
 
 module.exports = {
   getGroupBy,
-  buildBuckets,
   buildTrend,
 };

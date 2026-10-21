@@ -48,6 +48,33 @@ const CHARTS = [
   },
 ];
 
+function ChartMessage({ children }) {
+  return (
+    <div className="flex min-h-64 w-full flex-1 items-center justify-center text-sm text-muted-foreground">
+      {children}
+    </div>
+  );
+}
+
+// Area chart for one dashboard trend: { group_by, points: [{ label, value }] }.
+// The server already grouped the points (day / week / month / year) and wrote
+// the x axis labels, so they are shown exactly as they come.
+// Use it for every chart that gets its data from the dashboard API.
+function TrendChart({ trend, isLoading, isError, valueLabel }) {
+  if (isLoading) return <ChartMessage>Loading...</ChartMessage>;
+
+  if (isError) return <ChartMessage>Could not load the data.</ChartMessage>;
+
+  return (
+    <AreaChart
+      data={trend?.points ?? []}
+      labelKey="label"
+      formatLabel={String}
+      valueLabel={valueLabel}
+    />
+  );
+}
+
 function ChartCard({ title, description, icon: Icon, range, children }) {
   return (
     <Card className="flex h-full min-h-0 flex-col">
@@ -74,14 +101,6 @@ function ChartCard({ title, description, icon: Icon, range, children }) {
   );
 }
 
-function ChartMessage({ children }) {
-  return (
-    <div className="flex min-h-64 w-full flex-1 items-center justify-center text-sm text-muted-foreground">
-      {children}
-    </div>
-  );
-}
-
 function Dashboard() {
   // { preset, startDate, endDate } - use startDate / endDate for the API.
   const [range, setRange] = useState(() =>
@@ -95,7 +114,7 @@ function Dashboard() {
   const [branchId, setBranchId] = useState(userBranchId ?? null);
 
   // GET /api/dashboard - refetches whenever the date range changes.
-  // Resolves with { subscriptions: [{ date, value }] }.
+  // Resolves with { subscriptions: { group_by, points } }.
   const { data, isLoading, isError } = useQuery({
     queryKey: ["dashboard", range.startDate, range.endDate],
     queryFn: () =>
@@ -104,14 +123,13 @@ function Dashboard() {
   });
 
   // Content per chart key. Charts without an entry keep the placeholder.
+  // To wire another chart: <TrendChart trend={data?.revenue} ... />
   const chartContent = {
-    memberships: isLoading ? (
-      <ChartMessage>Loading subscriptions...</ChartMessage>
-    ) : isError ? (
-      <ChartMessage>Could not load subscriptions.</ChartMessage>
-    ) : (
-      <AreaChart
-        data={data?.subscriptions ?? []}
+    memberships: (
+      <TrendChart
+        trend={data?.subscriptions}
+        isLoading={isLoading}
+        isError={isError}
         valueLabel="Subscriptions"
       />
     ),
