@@ -1,6 +1,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 
+import AssociatedMembers from "./AssociatedMembers";
 import StaffActions from "./StaffActions";
 
 // const ROLE_LABELS = {
@@ -19,14 +20,19 @@ const getInitials = (name = "") =>
     .join("");
 
 // Handlers: { onEdit, onDelete, onToggleStatus, isStatusUpdating(staff),
-//             onViewProfile(staffId) }
-// onViewProfile is called when the staff name is clicked.
+//             onViewProfile(staffId), onViewMembers(staff),
+//             onViewMember(memberId) }
+// onViewProfile is called when the staff name is clicked, onViewMembers when
+// the "+N" circle of the associated members is clicked, onViewMember when one
+// of their avatars is clicked.
 export const getStaffColumns = ({
   onEdit,
   onDelete,
   onToggleStatus,
   isStatusUpdating,
   onViewProfile,
+  onViewMembers,
+  onViewMember,
 } = {}) => [
   {
     accessorKey: "user_id",
@@ -77,6 +83,18 @@ export const getStaffColumns = ({
   {
     accessorKey: "branch_name",
     header: "Branch",
+  },
+  {
+    id: "associated_members",
+    header: "Assigned members",
+    enableSorting: false,
+    cell: ({ row }) => (
+      <AssociatedMembers
+        associated={row.original.associated_members}
+        onViewMember={onViewMember}
+        onViewAll={() => onViewMembers?.(row.original)}
+      />
+    ),
   },
   {
     accessorKey: "is_active",

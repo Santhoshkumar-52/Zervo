@@ -46,6 +46,67 @@ const staffQuery = (branchId) =>
 const findStaff = (id, branchId) =>
   staffQuery(branchId).where("users.id", id).select(STAFF_COLUMNS).first();
 
+// How many associated members are sent back with each staff member.
+const ASSOCIATED_MEMBERS_LIMIT = 5;
+
+// Members whose assigned trainer is one of `staffIds` (this branch, not
+// deleted). Returns a Map of staff id -> { total, members }, where `total` is
+// the full count and `members` the newest few ({ id, name, avatar_url }) for
+// an avatar stack. Two queries for the whole page, not one per staff member.
+const getAssociatedMembers = async (staffIds, branchId) => {
+  const result = new Map(
+    staffIds.map((id) => [id, { total: 0, members: [] }]),
+  );
+
+  if (staffIds.length === 0) return result;
+
+  const associated = () =>
+    db("members")
+      .where("members.branch_id", branchId)
+      .whereNull("members.deleted_at")
+      .whereIn("members.assigned_trainer_id", staffIds);
+
+  const [totals, members] = await Promise.all([
+    associated()
+      .groupBy("members.assigned_trainer_id")
+      .select("members.assigned_trainer_id", db.raw("COUNT(*) as total")),
+
+    associated()
+      // Newest first (highest id). A member is kept only when fewer than
+      // LIMIT newer members share its trainer, so each trainer gets at most
+      // LIMIT rows without needing window functions.
+      .whereRaw(
+        `(SELECT COUNT(*) FROM members AS newer
+          WHERE newer.assigned_trainer_id = members.assigned_trainer_id
+            AND newer.branch_id = members.branch_id
+            AND newer.deleted_at IS NULL
+            AND newer.id > members.id) < ?`,
+        [ASSOCIATED_MEMBERS_LIMIT],
+      )
+      .select(
+        "members.id",
+        "members.assigned_trainer_id",
+        "members.avatar_url",
+        db.raw("CONCAT_WS(' ', members.first_name, members.last_name) as name"),
+      )
+      .orderBy("members.id", "desc"),
+  ]);
+
+  for (const row of totals) {
+    result.get(row.assigned_trainer_id).total = Number(row.total);
+  }
+
+  for (const row of members) {
+    result.get(row.assigned_trainer_id).members.push({
+      id: row.id,
+      name: row.name,
+      avatar_url: row.avatar_url ?? null,
+    });
+  }
+
+  return result;
+};
+
 // Returns a response for duplicate email / user_id, otherwise null.
 const duplicateResponse = (res, error) => {
   if (error.code !== "ER_DUP_ENTRY") return null;
@@ -70,6 +131,9 @@ const duplicateResponse = (res, error) => {
 // GET /api/staff?page&limit&search&role&isActive
 // `search` matches full name, email, mobile number, user ID or group name
 // (owner, manager ...).
+// Each staff member also carries the members assigned to them:
+//   associated_members: { total, members: [{ id, name, avatar_url }] }
+// (`members` holds at most ASSOCIATED_MEMBERS_LIMIT, newest first).
 const getStaffList = async (req, res) => {
   try {
     const { branchId } = req.user;
@@ -128,13 +192,23 @@ const getStaffList = async (req, res) => {
       .limit(limit)
       .offset(offset);
 
+    const associated = await getAssociatedMembers(
+      staff.map((item) => item.id),
+      branchId,
+    );
+
+    const staffWithMembers = staff.map((item) => ({
+      ...item,
+      associated_members: associated.get(item.id),
+    }));
+
     const totalStaff = Number(total);
     const totalPages = Math.ceil(totalStaff / limit);
 
     return successResponse(
       res,
       {
-        staff,
+        staff: staffWithMembers,
         pagination: {
           page,
           limit,

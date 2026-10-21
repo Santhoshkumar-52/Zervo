@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { UserCog, SearchX } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 import AppAlertDialog from "@/components/additonal/AlertDialog";
 import DataTable from "@/components/additonal/Datatable/DataTable";
+import ProfileViewer from "@/components/additonal/ProfileViewer";
 import StaffProfileViewer from "@/components/additonal/StaffProfileViewer";
+import MemberEditor from "@/pages/members/MemberEditor";
+import { useMemberStore } from "@/store/member";
 import { useStaffStore } from "@/store/staff";
 
 import EditStaffDialog from "./EditStaffDialog";
@@ -38,6 +42,8 @@ const getRowId = (row) => String(row.id);
  *   delete  deleteStaff   -> row removed
  */
 function StaffList() {
+  const navigate = useNavigate();
+
   // ---- Rendered from the store ---------------------------------------
   const staff = useStaffStore((state) => state.staff);
   const total = useStaffStore((state) => state.total);
@@ -72,6 +78,12 @@ function StaffList() {
   // Staff member whose profile modal is open (opened by clicking a name).
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileStaffId, setProfileStaffId] = useState(null);
+
+  // Member whose profile modal is open (opened by clicking an avatar in the
+  // associated members column).
+  const [memberProfileOpen, setMemberProfileOpen] = useState(false);
+  const [memberEditOpen, setMemberEditOpen] = useState(false);
+  const [profileMemberId, setProfileMemberId] = useState(null);
 
   // Kept while the dialog animates closed so its text does not flicker.
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -110,6 +122,16 @@ function StaffList() {
     () =>
       getStaffColumns({
         onEdit: handleEdit,
+        // Open the members page already searching for this trainer (the
+        // members search also matches the trainer name).
+        onViewMembers: (member) => {
+          useMemberStore.getState().setSearch(member.full_name);
+          navigate("/members");
+        },
+        onViewMember: (memberId) => {
+          setProfileMemberId(memberId);
+          setMemberProfileOpen(true);
+        },
         onViewProfile: (staffId) => {
           setProfileStaffId(staffId);
           setProfileOpen(true);
@@ -125,7 +147,7 @@ function StaffList() {
         },
         isStatusUpdating: (member) => statusUpdatingIds.includes(member.id),
       }),
-    [handleEdit, statusUpdatingIds],
+    [handleEdit, navigate, statusUpdatingIds],
   );
 
   return (
@@ -174,6 +196,22 @@ function StaffList() {
 
           if (member) handleEdit(member);
         }}
+      />
+
+      {/* Member profile, opened from an associated member avatar. A saved
+          edit is pulled into the stack (name, photo) by a refetch. */}
+      <ProfileViewer
+        open={memberProfileOpen}
+        onOpenChange={setMemberProfileOpen}
+        memberId={profileMemberId}
+        onEdit={() => setMemberEditOpen(true)}
+      />
+
+      <MemberEditor
+        open={memberEditOpen}
+        onOpenChange={setMemberEditOpen}
+        memberId={profileMemberId}
+        onSaved={fetchStaff}
       />
 
       <AppAlertDialog

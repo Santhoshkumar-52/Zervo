@@ -5,6 +5,9 @@ import api from "../axios";
 // GET /api/staff
 // params: { page, limit, search, role, isActive }
 // Response: { success, message, data: { staff: [], pagination: {} } }
+//   Each staff member also has the members assigned to them:
+//   associated_members: { total, members: [{ id, name, avatar_url }] }
+//   (members: up to 5, newest first; total is the full count)
 export const getStaff = (params = {}) => {
   // Drop empty values so we never send ?search=&role=undefined
   const cleanParams = Object.fromEntries(
