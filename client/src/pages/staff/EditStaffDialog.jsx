@@ -33,6 +33,12 @@ const ROLE_ITEMS = [
 
 const DEFAULT_ROLE = "front_desk";
 
+const GENDER_OPTIONS = [
+  { value: "male", label: "Male" },
+  { value: "female", label: "Female" },
+  { value: "others", label: "Others" },
+];
+
 const baseFields = {
   full_name: z.string().trim().min(1, "Full name is required").max(100),
   email: z
@@ -42,6 +48,8 @@ const baseFields = {
     .max(150)
     .pipe(z.email("Enter a valid email")),
   role: z.string().min(1, "Role is required"),
+  // Optional: null until one is chosen.
+  gender: z.enum(["male", "female", "others"]).nullable(),
   is_active: z.boolean(),
 };
 
@@ -82,6 +90,7 @@ const toFormValues = (staff) => ({
   email: staff?.email ?? "",
   password: "",
   role: staff?.role ?? DEFAULT_ROLE,
+  gender: staff?.gender ?? null,
   is_active: staff ? Boolean(staff.is_active) : true,
 });
 
@@ -98,8 +107,8 @@ const toFormValues = (staff) => ({
  *   />
  *
  * `onSubmit` gets the API-ready values:
- *   create: { user_id, full_name, email, password, role, is_active }
- *   edit:   { full_name, email, role, is_active, password? }
+ *   create: { user_id, full_name, email, password, role, gender | null, is_active }
+ *   edit:   { full_name, email, role, gender | null, is_active, password? }
  * If it returns a promise the dialog closes when it resolves and stays open
  * when it rejects.
  */
@@ -144,6 +153,7 @@ function EditStaffDialog({
       full_name: values.full_name,
       email: values.email,
       role: values.role,
+      gender: values.gender ?? null,
       is_active: values.is_active,
     };
 
@@ -278,11 +288,35 @@ function EditStaffDialog({
                 )}
               />
             </Field>
+
+            <Field label="Gender" htmlFor="edit-staff-gender">
+              <Controller
+                name="gender"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    items={GENDER_OPTIONS}
+                    value={field.value}
+                    onValueChange={field.onChange}
+                  >
+                    <SelectTrigger id="edit-staff-gender" className="w-full">
+                      <SelectValue placeholder="Select gender" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {GENDER_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </Field>
           </div>
 
           <Field
-            label={isCreate ? "Password" : "New password"}
-            htmlFor="edit-staff-password"
+            label={isCreate ? "Password" : "New password"}            htmlFor="edit-staff-password"
             required={isCreate}
             error={errors.password?.message}
           >

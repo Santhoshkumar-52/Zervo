@@ -13,7 +13,7 @@ export async function up(knex) {
 
     table.string("phone", 20).notNullable();
     table.string("email", 255).nullable();
-
+    table.enu("gender", ["male", "female", "others"]).nullable();
     table.tinyint("is_active").notNullable().defaultTo(1);
 
     table.date("joined_on").notNullable();

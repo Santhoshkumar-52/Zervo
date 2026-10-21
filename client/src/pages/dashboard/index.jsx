@@ -36,14 +36,21 @@ const CHARTS = [
   },
   {
     key: "revenue",
-    span: "md:col-span-1 xl:col-span-1",
+    span: "md:col-span-2 xl:col-span-1",
+    title: "Revenue",
+    description: "Collections over the period",
+    icon: LineChart,
+  },
+  {
+    key: "paymentmode",
+    span: "md:col-span-2 xl:col-span-1",
     title: "Revenue",
     description: "Collections over the period",
     icon: LineChart,
   },
   {
     key: "attendance",
-    span: "md:col-span-1 xl:col-span-3",
+    span: "md:col-span-2 xl:col-span-2",
     title: "Attendance",
     description: "Check-ins over the period",
     icon: BarChart3,

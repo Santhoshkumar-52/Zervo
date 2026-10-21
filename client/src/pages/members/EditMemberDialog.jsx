@@ -16,9 +16,22 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 
 import { trainerSource } from "./trainerSource";
+
+const GENDER_OPTIONS = [
+  { value: "male", label: "Male" },
+  { value: "female", label: "Female" },
+  { value: "others", label: "Others" },
+];
 
 const memberSchema = z.object({
   first_name: z.string().trim().min(1, "First name is required").max(100),
@@ -36,6 +49,8 @@ const memberSchema = z.object({
     .refine((value) => value === "" || z.email().safeParse(value).success, {
       message: "Enter a valid email",
     }),
+  // Optional: null until one is chosen.
+  gender: z.enum(["male", "female", "others"]).nullable(),
   joined_on: z.string().min(1, "Joined date is required"),
   // The chosen trainer, or null when unassigned. Only the id and name are kept.
   assigned_trainer: z
@@ -67,6 +82,7 @@ const toFormValues = (member) => ({
   last_name: member?.last_name ?? "",
   phone: member?.phone ?? "",
   email: member?.email ?? "",
+  gender: member?.gender ?? null,
   joined_on: member?.joined_on ?? today(),
   assigned_trainer: member?.assigned_trainer_id
     ? {
@@ -93,7 +109,7 @@ const toFormValues = (member) => ({
  *   />
  *
  * `onSubmit` gets the API-ready values:
- *   { first_name, last_name, phone, email | null, joined_on,
+ *   { first_name, last_name, phone, email | null, gender | null, joined_on,
  *     assigned_trainer_id | null, is_active }
  * If it returns a promise the dialog closes when it resolves and stays open
  * when it rejects.
@@ -131,6 +147,7 @@ function EditMemberDialog({
       last_name: values.last_name,
       phone: values.phone,
       email: values.email || null,
+      gender: values.gender ?? null,
       joined_on: values.joined_on,
       assigned_trainer_id: values.assigned_trainer?.id ?? null,
 
@@ -244,9 +261,33 @@ function EditMemberDialog({
               />
             </Field>
 
+            <Field label="Gender" htmlFor="edit-member-gender">
+              <Controller
+                name="gender"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    items={GENDER_OPTIONS}
+                    value={field.value}
+                    onValueChange={field.onChange}
+                  >
+                    <SelectTrigger id="edit-member-gender" className="w-full">
+                      <SelectValue placeholder="Select gender" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {GENDER_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </Field>
+
             <Field
-              label="Joined on"
-              htmlFor="edit-member-joined-on"
+              label="Joined on"              htmlFor="edit-member-joined-on"
               required
               error={errors.joined_on?.message}
             >

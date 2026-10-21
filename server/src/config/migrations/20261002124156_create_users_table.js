@@ -24,6 +24,7 @@ exports.up = async function (knex) {
     table.integer("group_id").unsigned().notNullable().index();
 
     table.string("full_name", 100).notNullable();
+    table.enu("gender", ["male", "female", "others"]).nullable();
 
     table.string("email", 150).notNullable().unique();
 
