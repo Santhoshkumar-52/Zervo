@@ -8,6 +8,7 @@ import { getSubscriptionList } from "@/api/subscription/subscriptionApi";
 import DatePicker from "@/components/additonal/DatePicker";
 import DataTable from "@/components/additonal/Datatable/DataTable";
 import ProfileViewer from "@/components/additonal/ProfileViewer";
+import MemberEditor from "@/pages/members/MemberEditor";
 import { Label } from "@/components/ui/label";
 
 import { getSubscriptionReportColumns } from "./SubscriptionReportColumns";
@@ -69,6 +70,7 @@ function SubscriptionReportList() {
   // Member whose profile modal is open (opened by clicking a name).
   const [profileMemberId, setProfileMemberId] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const isRangeInvalid = Boolean(startDate && endDate && startDate > endDate);
 
@@ -214,6 +216,13 @@ function SubscriptionReportList() {
       <ProfileViewer
         open={profileOpen}
         onOpenChange={setProfileOpen}
+        memberId={profileMemberId}
+        onEdit={() => setEditOpen(true)}
+      />
+
+      <MemberEditor
+        open={editOpen}
+        onOpenChange={setEditOpen}
         memberId={profileMemberId}
       />
     </div>

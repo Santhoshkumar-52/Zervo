@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
@@ -8,6 +9,8 @@ import { getDiscountTypes } from "@/api/subscription/subscriptionApi";
 import AsyncCombobox from "@/components/additonal/AsyncCombobox";
 import DatePicker from "@/components/additonal/DatePicker";
 import Field from "@/components/additonal/Field";
+import ProfileViewer from "@/components/additonal/ProfileViewer";
+import MemberEditor from "@/pages/members/MemberEditor";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -29,6 +32,7 @@ import { currency, formatMoney } from "@/utils/currency";
 import { notifySuccess } from "@/utils/notification";
 
 import PlanInfo from "./PlanInfo";
+import SelectedMember from "./SelectedMember";
 import { memberSource, planSource, taxSource } from "./optionSources";
 import { getDefaultValues, subscriptionSchema } from "./subscriptionSchema";
 
@@ -69,6 +73,10 @@ const getEndDate = (startDate, plan) => {
  * `duration_days` (start date is day 1), and it is empty until both are chosen.
  */
 function SubscriptionForm({ hasItems = false, onAddItem }) {
+  // Profile modal of the member picked in the dropdown.
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+
   const {
     control,
     handleSubmit,
@@ -150,7 +158,9 @@ function SubscriptionForm({ hasItems = false, onAddItem }) {
 
   return (
     <Card>
-      <CardHeader>
+      {/* From `md` the selected member sits in the right column, lined up
+          with the Bill date field below; on phones it stacks under the text. */}
+      <CardHeader className="md:grid-cols-2 md:gap-x-4">
         <CardTitle className="flex items-center gap-2">
           <ReceiptText className="size-5" />
           New subscription
@@ -159,6 +169,15 @@ function SubscriptionForm({ hasItems = false, onAddItem }) {
         <CardDescription>
           Choose a member and a plan, then add it to the bill.
         </CardDescription>
+
+        {member?.id && (
+          <div className="mt-2 md:col-start-2 md:row-span-2 md:row-start-1 md:mt-0">
+            <SelectedMember
+              member={member}
+              onOpen={() => setProfileOpen(true)}
+            />
+          </div>
+        )}
       </CardHeader>
 
       <CardContent>
@@ -389,6 +408,21 @@ function SubscriptionForm({ hasItems = false, onAddItem }) {
           </Field>
         </form>
       </CardContent>
+
+      <ProfileViewer
+        open={profileOpen}
+        onOpenChange={setProfileOpen}
+        memberId={member?.id ?? null}
+        onEdit={() => setEditOpen(true)}
+      />
+
+      {/* After a save, keep the dropdown's selected member up to date. */}
+      <MemberEditor
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        memberId={member?.id ?? null}
+        onSaved={(updated) => setValue("member", { ...member, ...updated })}
+      />
     </Card>
   );
 }

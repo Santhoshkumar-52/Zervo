@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Pencil } from "lucide-react";
 
 import { getMemberById } from "@/api/member/memberApi";
 import StaffProfileViewer from "@/components/additonal/StaffProfileViewer";
@@ -260,13 +261,18 @@ function SubscriptionDetailsPanel({ subscription }) {
  *
  * Clicking the trainer name opens that trainer's StaffProfileViewer on top.
  *
+ * Pass `onEdit` to show an Edit icon button next to the close button. It closes
+ * this modal first, then calls `onEdit(memberId)` so the parent can open the
+ * edit dialog. Without `onEdit` the modal stays read-only.
+ *
  *   <ProfileViewer
  *     open={open}
  *     onOpenChange={setOpen}
  *     memberId={member.id}   // members.id (internal id), not member_Id
+ *     onEdit={(id) => ...}   // optional
  *   />
  */
-function ProfileViewer({ open, onOpenChange, memberId }) {
+function ProfileViewer({ open, onOpenChange, memberId, onEdit }) {
   // Trainer whose profile is open on top of this modal.
   const [trainerId, setTrainerId] = useState(null);
   const [trainerOpen, setTrainerOpen] = useState(false);
@@ -282,14 +288,35 @@ function ProfileViewer({ open, onOpenChange, memberId }) {
     staleTime: 0,
   });
 
+  const handleEdit = () => {
+    onOpenChange?.(false);
+    onEdit?.(memberId);
+  };
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-3xl">
-          <DialogHeader>
+          {/* The close button sits at right-2; Edit goes just left of it. */}
+          <DialogHeader className="pr-16">
             <DialogTitle>Profile</DialogTitle>
             <DialogDescription>Member and subscription details</DialogDescription>
           </DialogHeader>
+
+          {onEdit && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="absolute top-2 right-10"
+              onClick={handleEdit}
+              disabled={!memberId}
+              aria-label="Edit member"
+              title="Edit member"
+            >
+              <Pencil />
+            </Button>
+          )}
 
           <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
             {isLoading && <ProfileSkeleton />}

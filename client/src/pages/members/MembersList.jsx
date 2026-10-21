@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Users, SearchX } from "lucide-react";
 
 import AppAlertDialog from "@/components/additonal/AlertDialog";
@@ -97,15 +97,20 @@ function MembersList() {
     fetchMembers();
   }, [fetchMembers, appliedSearch, pagination.pageIndex, pagination.pageSize]);
 
+  const handleEdit = useCallback(
+    (member) => {
+      // Show the row's data straight away, then refresh it by id.
+      selectMember(member);
+      setEditOpen(true);
+      fetchMemberById(member.id).catch(() => setEditOpen(false));
+    },
+    [selectMember, fetchMemberById],
+  );
+
   const columns = useMemo(
     () =>
       getMembersColumns({
-        onEdit: (member) => {
-          // Show the row's data straight away, then refresh it by id.
-          selectMember(member);
-          setEditOpen(true);
-          fetchMemberById(member.id).catch(() => setEditOpen(false));
-        },
+        onEdit: handleEdit,
         onDelete: (member) => {
           setMemberToDelete(member);
           setDeleteOpen(true);
@@ -121,7 +126,7 @@ function MembersList() {
           setProfileOpen(true);
         },
       }),
-    [selectMember, fetchMemberById, statusUpdatingIds],
+    [handleEdit, statusUpdatingIds],
   );
 
   return (
@@ -164,6 +169,12 @@ function MembersList() {
         open={profileOpen}
         onOpenChange={setProfileOpen}
         memberId={profileMemberId}
+        onEdit={(memberId) => {
+          // The profile was opened from a row, so the row is in the list.
+          const member = members.find((item) => item.id === memberId);
+
+          if (member) handleEdit(member);
+        }}
       />
 
       <AppAlertDialog
