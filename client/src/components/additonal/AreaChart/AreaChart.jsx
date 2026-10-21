@@ -1,35 +1,16 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { format, isValid, parseISO } from "date-fns";
+import { useId, useMemo, useState } from "react";
 
 import { cn } from "@/lib/utils";
-
-const MARGIN = { top: 12, right: 12, bottom: 28, left: 40 };
-const Y_TICKS = 4;
-
-// "2026-10-05" -> "05 Oct". Anything that is not a date is shown as it is.
-const defaultFormatLabel = (label) => {
-  const date = typeof label === "string" ? parseISO(label) : null;
-
-  return date && isValid(date) ? format(date, "dd MMM") : String(label ?? "");
-};
-
-const defaultFormatValue = (value) => value.toLocaleString();
-
-// Round the top of the y axis up to a "nice" number (1, 2, 5 x 10^n) so the
-// grid lines fall on whole values.
-const getNiceMax = (max) => {
-  if (max <= 0) return Y_TICKS;
-
-  const step = max / Y_TICKS;
-  const magnitude = 10 ** Math.floor(Math.log10(step));
-  const normalized = step / magnitude;
-
-  const niceStep =
-    (normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10) *
-    magnitude;
-
-  return Math.max(niceStep * Y_TICKS, 1);
-};
+import {
+  ChartGrid,
+  ChartTooltip,
+  ChartXLabels,
+  MARGIN,
+  defaultFormatLabel,
+  defaultFormatValue,
+  getNiceMax,
+  useElementWidth,
+} from "@/components/additonal/ChartKit";
 
 // Smooth line through the points. The control points sit at the middle of each
 // segment with the same height as their point, so the curve never overshoots
@@ -72,25 +53,8 @@ function AreaChart({
   className,
 }) {
   const gradientId = useId();
-  const containerRef = useRef(null);
-
-  const [width, setWidth] = useState(0);
+  const [containerRef, width] = useElementWidth();
   const [activeIndex, setActiveIndex] = useState(null);
-
-  // Follow the width of the parent so the chart is responsive.
-  useEffect(() => {
-    const element = containerRef.current;
-
-    if (!element) return undefined;
-
-    const observer = new ResizeObserver(([entry]) => {
-      setWidth(entry.contentRect.width);
-    });
-
-    observer.observe(element);
-
-    return () => observer.disconnect();
-  }, []);
 
   const innerWidth = Math.max(width - MARGIN.left - MARGIN.right, 0);
   const innerHeight = Math.max(height - MARGIN.top - MARGIN.bottom, 0);
@@ -124,9 +88,6 @@ function AreaChart({
   const areaPath = hasData
     ? `${linePath} L ${points[points.length - 1].x} ${baseY} L ${points[0].x} ${baseY} Z`
     : "";
-
-  // Show only as many x labels as fit, evenly spaced.
-  const labelEvery = Math.max(Math.ceil(points.length / Math.max(Math.floor(innerWidth / 72), 1)), 1);
 
   const handleMouseMove = (event) => {
     if (!hasData) return;
@@ -175,48 +136,20 @@ function AreaChart({
                 </linearGradient>
               </defs>
 
-              {/* Horizontal grid lines + y axis values */}
-              {Array.from({ length: Y_TICKS + 1 }, (_, index) => {
-                const value = (yMax / Y_TICKS) * index;
-                const y = baseY - (index / Y_TICKS) * innerHeight;
+              <ChartGrid
+                yMax={yMax}
+                baseY={baseY}
+                innerWidth={innerWidth}
+                innerHeight={innerHeight}
+                formatValue={formatValue}
+              />
 
-                return (
-                  <g key={index}>
-                    <line
-                      x1={MARGIN.left}
-                      x2={MARGIN.left + innerWidth}
-                      y1={y}
-                      y2={y}
-                      stroke="var(--border)"
-                      strokeDasharray={index === 0 ? undefined : "3 3"}
-                    />
-                    <text
-                      x={MARGIN.left - 8}
-                      y={y}
-                      textAnchor="end"
-                      dominantBaseline="middle"
-                      className="fill-muted-foreground text-[11px]"
-                    >
-                      {formatValue(value)}
-                    </text>
-                  </g>
-                );
-              })}
-
-              {/* x axis labels */}
-              {points.map((point, index) =>
-                index % labelEvery === 0 ? (
-                  <text
-                    key={`${point.label}-${index}`}
-                    x={point.x}
-                    y={height - 8}
-                    textAnchor="middle"
-                    className="fill-muted-foreground text-[11px]"
-                  >
-                    {formatLabel(point.label)}
-                  </text>
-                ) : null,
-              )}
+              <ChartXLabels
+                points={points}
+                innerWidth={innerWidth}
+                y={height - 8}
+                formatLabel={formatLabel}
+              />
 
               <path d={areaPath} fill={`url(#${gradientId})`} />
 
@@ -258,21 +191,13 @@ function AreaChart({
             </svg>
 
             {active && (
-              <div
-                className="pointer-events-none absolute z-10 rounded-md border bg-popover px-2.5 py-1.5 text-xs text-popover-foreground shadow-md"
-                style={{
-                  left: Math.min(Math.max(active.x, 56), width - 56),
-                  top: Math.max(active.y - 12, 0),
-                  transform: "translate(-50%, -100%)",
-                }}
-              >
-                <div className="text-muted-foreground">
-                  {formatLabel(active.label)}
-                </div>
-                <div className="font-medium">
-                  {valueLabel}: {formatValue(active.value)}
-                </div>
-              </div>
+              <ChartTooltip
+                point={active}
+                width={width}
+                valueLabel={valueLabel}
+                formatLabel={formatLabel}
+                formatValue={formatValue}
+              />
             )}
           </>
         )

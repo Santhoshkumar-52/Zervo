@@ -4,6 +4,7 @@ import { BarChart3, LineChart, PieChart } from "lucide-react";
 
 import { getDashboard } from "@/api/dashboard/dashboardApi";
 import { AreaChart } from "@/components/additonal/AreaChart";
+import { BarChart } from "@/components/additonal/BarChart";
 import BranchFilter from "@/components/additonal/BranchFilter";
 import DateRangeFilter, {
   getDateRangeValue,
@@ -56,21 +57,39 @@ function ChartMessage({ children }) {
   );
 }
 
-// Area chart for one dashboard trend: { group_by, points: [{ label, value }] }.
+// Chart styles a TrendChart can use.
+const TREND_CHARTS = {
+  area: AreaChart,
+  bar: BarChart,
+};
+
+// Chart for one dashboard trend: { group_by, points: [{ label, value }] }.
 // The server already grouped the points (day / week / month / year) and wrote
 // the x axis labels, so they are shown exactly as they come.
+//   type        "area" (default) or "bar"
+//   chartProps  passed on to the chart (formatValue, color, height ...)
 // Use it for every chart that gets its data from the dashboard API.
-function TrendChart({ trend, isLoading, isError, valueLabel }) {
+function TrendChart({
+  type = "area",
+  trend,
+  isLoading,
+  isError,
+  valueLabel,
+  ...chartProps
+}) {
   if (isLoading) return <ChartMessage>Loading...</ChartMessage>;
 
   if (isError) return <ChartMessage>Could not load the data.</ChartMessage>;
 
+  const Chart = TREND_CHARTS[type];
+
   return (
-    <AreaChart
+    <Chart
       data={trend?.points ?? []}
       labelKey="label"
       formatLabel={String}
       valueLabel={valueLabel}
+      {...chartProps}
     />
   );
 }
@@ -131,6 +150,15 @@ function Dashboard() {
         isLoading={isLoading}
         isError={isError}
         valueLabel="Subscriptions"
+      />
+    ),
+    revenue: (
+      <TrendChart
+        type="bar"
+        trend={data?.revenue}
+        isLoading={isLoading}
+        isError={isError}
+        valueLabel="Revenue"
       />
     ),
   };
