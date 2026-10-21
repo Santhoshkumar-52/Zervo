@@ -3,7 +3,11 @@ const {
   reportRangeSchema,
   formatZodError,
 } = require("../reportController/schema");
-const { findSubscriptionTrend } = require("./dashboardStore");
+const {
+  findSubscriptionTrend,
+  findSalesTrend,
+  findSalesSeries,
+} = require("./dashboardStore");
 const { buildTrend } = require("./trend");
 
 // ---------------------------------------------------------------------------
@@ -12,18 +16,32 @@ const { buildTrend } = require("./trend");
 // an error. Add a new loader here and register it in `loaders` below.
 // ---------------------------------------------------------------------------
 
-// Turns a per-day query into a chart loader. `findDailyRows` is a store
-// function (branchId, { startDate, endDate }) that resolves with one
-// { date, value } row per day. The rows are grouped by day, week, month or
-// year depending on the length of the range (see trend.js).
-// -> { group_by, points: [{ label, start_date, end_date, value }] }
-const trendLoader = (findDailyRows) => async (params) =>
-  buildTrend(await findDailyRows(params.branchId, params), params);
+// Turns a per-day query into a chart loader.
+//   findDailyRows  store function (branchId, { startDate, endDate }) that
+//                  resolves with one { date, value } row per day. Add a `key`
+//                  to each row to split the chart into parts.
+//   findSeries     optional, for charts split into parts: (branchId, rows)
+//                  resolves with the parts [{ key, name }] in display order.
+// The rows are grouped by day, week, month or year depending on the length of
+// the range (see trend.js).
+// -> { group_by, points: [{ label, start_date, end_date, value, breakdown? }],
+//      series? }
+const trendLoader = (findDailyRows, findSeries) => async (params) => {
+  const rows = await findDailyRows(params.branchId, params);
+  const trend = buildTrend(rows, params);
+
+  if (!findSeries) return trend;
+
+  return { ...trend, series: await findSeries(params.branchId, rows) };
+};
 
 // key -> loader. The key becomes the property name in the response.
 const loaders = {
+  // Bills per period
   subscriptions: trendLoader(findSubscriptionTrend),
-  // revenue: trendLoader(findRevenueTrend),   <- add more charts here
+  // Sales per period, split by plan (paise, tax included)
+  revenue: trendLoader(findSalesTrend, findSalesSeries),
+  // attendance: trendLoader(findAttendanceTrend),   <- add more charts here
 };
 
 // GET /api/dashboard?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD
@@ -32,7 +50,8 @@ const loaders = {
 // Runs every loader together for the logged-in user's branch. Promise.all only
 // resolves when ALL of them succeed; if any one rejects, the whole request
 // fails (nothing partial is sent).
-// -> { subscriptions: { group_by, points: [{ label, start_date, end_date, value }] } }
+// -> { subscriptions: { group_by, points },
+//      revenue: { group_by, points, series } }   (see trendLoader)
 const getDashboard = async (req, res) => {
   try {
     const parsed = reportRangeSchema.safeParse({

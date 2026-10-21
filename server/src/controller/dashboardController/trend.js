@@ -16,6 +16,10 @@
 // may be missing), then group them. Counts and amounts both work, because a
 // bucket is simply the sum of its days.
 //
+// A chart split into parts (for example sales per plan) adds a `key` to the
+// rows, one row per day and part. Each point then also says how much of its
+// value belongs to each key.
+//
 //   buildTrend(dailyRows, { startDate, endDate })
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -177,8 +181,8 @@ const buildBuckets = (groupBy, startDate, endDate) => {
 };
 
 /**
- * dailyRows: [{ date: "YYYY-MM-DD", value }]  one per day, days without data
- *            may be missing
+ * dailyRows: [{ date: "YYYY-MM-DD", value, key? }]  days without data may be
+ *            missing. Add `key` to split the value into parts.
  *
  * Returns
  *   {
@@ -188,6 +192,8 @@ const buildBuckets = (groupBy, startDate, endDate) => {
  *       start_date,  first day of the point (YYYY-MM-DD)
  *       end_date,    last day of the point (YYYY-MM-DD)
  *       value,       sum of the days inside the point
+ *       breakdown?   { [key]: sum }  only when the rows have keys; a key with
+ *                    nothing in the point is missing, so read it as 0
  *     }]
  *   }
  */
@@ -195,13 +201,29 @@ const buildTrend = (dailyRows, { startDate, endDate }) => {
   const groupBy = getGroupBy(startDate, endDate);
   const points = buildBuckets(groupBy, startDate, endDate);
 
-  dailyRows.forEach(({ date, value }) => {
+  const hasKeys = dailyRows.some(({ key }) => key !== undefined);
+
+  if (hasKeys) {
+    points.forEach((point) => {
+      point.breakdown = {};
+    });
+  }
+
+  dailyRows.forEach(({ date, value, key }) => {
     // "YYYY-MM-DD" strings compare correctly as text.
     const point = points.find(
       (item) => date >= item.start_date && date <= item.end_date,
     );
 
-    if (point) point.value += Number(value) || 0;
+    if (!point) return;
+
+    const amount = Number(value) || 0;
+
+    point.value += amount;
+
+    if (hasKeys) {
+      point.breakdown[key] = (point.breakdown[key] ?? 0) + amount;
+    }
   });
 
   return { group_by: groupBy, points };
