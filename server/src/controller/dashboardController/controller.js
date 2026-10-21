@@ -8,6 +8,7 @@ const {
   findSalesTrend,
   findSalesSeries,
   findPaymentModes,
+  findAttendanceByGender,
 } = require("./dashboardStore");
 const { buildTrend } = require("./trend");
 
@@ -42,6 +43,11 @@ const trendLoader = (findDailyRows, findSeries) => async (params) => {
 const paymentModeLoader = (params) =>
   findPaymentModes(params.branchId, params);
 
+// Total attendance (check-ins) in the range split by the member's gender.
+// -> [{ key, name, count }]   (Male, Female, Others, and Not specified when used)
+const attendanceLoader = (params) =>
+  findAttendanceByGender(params.branchId, params);
+
 // key -> loader. The key becomes the property name in the response.
 const loaders = {
   // Bills per period
@@ -50,7 +56,9 @@ const loaders = {
   revenue: trendLoader(findSalesTrend, findSalesSeries),
   // Bill count and amount received per payment mode, for the whole range
   payment_modes: paymentModeLoader,
-  // attendance: trendLoader(findAttendanceTrend),   <- add more charts here
+  // Check-ins per gender, for the whole range
+  attendance: attendanceLoader,
+  // other charts: add them here
 };
 
 // GET /api/dashboard?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD
@@ -61,7 +69,8 @@ const loaders = {
 // fails (nothing partial is sent).
 // -> { subscriptions: { group_by, points },
 //      revenue: { group_by, points, series },   (see trendLoader)
-//      payment_modes: [{ id, name, count, amount }] }
+//      payment_modes: [{ id, name, count, amount }],
+//      attendance: [{ key, name, count }] }
 const getDashboard = async (req, res) => {
   try {
     const parsed = reportRangeSchema.safeParse({

@@ -111,8 +111,9 @@ const findSalesSeries = async (branchId, salesRows) => {
 // All payments_status rows of a bill are updated together, so only the newest
 // row of each bill is read (same as the bill list), which keeps a bill with
 // several items from being counted once per item.
-// A deleted mode is listed only when it was used in the range. Oldest mode
-// first, so every mode keeps its place whichever range is picked.
+// A mode used by the branch's bills is listed even when it belongs to another
+// branch; a deleted mode only when it was used in the range. Oldest mode first,
+// so every mode keeps its place whichever range is picked.
 const findPaymentModes = async (branchId, { startDate, endDate }) => {
   const usedRows = await db("payments_status as ps")
     .join("payments as p", "p.id", "ps.payment_id")
@@ -147,10 +148,14 @@ const findPaymentModes = async (branchId, { startDate, endDate }) => {
 
   const usedById = new Map(usedRows.map((row) => [row.id, row]));
 
+  // The branch's own modes, plus any mode its bills used (a bill can point at
+  // a mode of another branch, e.g. a branch that has no modes of its own), plus
+  // a deleted mode only when it was used in the range.
   const modes = await db("payments")
-    .where("branch_id", branchId)
-    .where(function activeOrUsed() {
-      this.whereNull("deleted_at").orWhereIn("id", [...usedById.keys()]);
+    .where(function ownOrUsed() {
+      this.where(function ownActive() {
+        this.where("branch_id", branchId).whereNull("deleted_at");
+      }).orWhereIn("id", [...usedById.keys()]);
     })
     .select("id", "payment_name")
     .orderBy("id", "asc");
@@ -167,9 +172,56 @@ const findPaymentModes = async (branchId, { startDate, endDate }) => {
   });
 };
 
+// Genders a member can have (same values as the members.gender column), in
+// display order. Members without a gender are counted under "unspecified".
+const GENDERS = [
+  { key: "male", name: "Male" },
+  { key: "female", name: "Female" },
+  { key: "others", name: "Others" },
+];
+const UNSPECIFIED_KEY = "unspecified";
+
+// Total attendance for the range, split by the member's gender: one
+// { key, name, count } record per gender.
+//   count = number of check-ins (mem_attendance rows) of members of that gender
+// A check-in counts when its check-in time falls on a day inside the range
+// (both days included) in this branch. Male, Female and Others are always
+// listed (0 when nobody checked in); "Not specified" is listed only when some
+// check-in belongs to a member without a gender.
+const findAttendanceByGender = async (branchId, { startDate, endDate }) => {
+  const rows = await db("mem_attendance as a")
+    .join("members as m", "m.id", "a.member_id")
+    .where("a.branch_id", branchId)
+    .where("a.checkinat", ">=", startDate)
+    .whereRaw("a.checkinat < DATE_ADD(?, INTERVAL 1 DAY)", [endDate])
+    .groupBy("m.gender")
+    .select("m.gender", db.raw("COUNT(*) AS total"));
+
+  const countByKey = new Map(
+    rows.map((row) => [row.gender ?? UNSPECIFIED_KEY, Number(row.total)]),
+  );
+
+  const result = GENDERS.map(({ key, name }) => ({
+    key,
+    name,
+    count: countByKey.get(key) ?? 0,
+  }));
+
+  if (countByKey.get(UNSPECIFIED_KEY)) {
+    result.push({
+      key: UNSPECIFIED_KEY,
+      name: "Not specified",
+      count: countByKey.get(UNSPECIFIED_KEY),
+    });
+  }
+
+  return result;
+};
+
 module.exports = {
   findSubscriptionTrend,
   findSalesTrend,
   findSalesSeries,
   findPaymentModes,
+  findAttendanceByGender,
 };

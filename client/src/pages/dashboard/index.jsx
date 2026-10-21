@@ -1,10 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  BarChart3,
-  LineChart,
-  PieChart as PieChartIcon,
-} from "lucide-react";
+import { LineChart, PieChart as PieChartIcon } from "lucide-react";
 
 import { getDashboard } from "@/api/dashboard/dashboardApi";
 import { AreaChart } from "@/components/additonal/AreaChart";
@@ -57,8 +53,8 @@ const CHARTS = [
     key: "attendance",
     span: "md:col-span-2 xl:col-span-2",
     title: "Attendance",
-    description: "Check-ins over the period",
-    icon: BarChart3,
+    description: "Total check-ins by gender",
+    icon: PieChartIcon,
   },
 ];
 
@@ -133,6 +129,30 @@ function PaymentModeChart({ modes, isLoading, isError }) {
   );
 }
 
+// Pie chart of the total attendance (check-ins) split by gender:
+// [{ key, name, count }] from the dashboard API. Each slice is the number of
+// check-ins of that gender; the middle of the donut shows the total.
+function AttendanceGenderChart({ attendance, isLoading, isError }) {
+  if (isLoading) return <ChartMessage>Loading...</ChartMessage>;
+
+  if (isError) return <ChartMessage>Could not load the data.</ChartMessage>;
+
+  const data = (attendance ?? []).map((item) => ({
+    label: item.name,
+    value: item.count,
+  }));
+
+  return (
+    <PieChart
+      donut
+      data={data}
+      formatValue={(value) => Number(value).toLocaleString()}
+      totalLabel="Check-ins"
+      emptyMessage="No check-ins for the selected dates."
+    />
+  );
+}
+
 function ChartCard({ title, description, icon: Icon, range, children }) {
   return (
     <Card className="flex h-full min-h-0 flex-col">
@@ -172,7 +192,7 @@ function Dashboard() {
   const [branchId, setBranchId] = useState(userBranchId ?? null);
 
   // GET /api/dashboard - refetches whenever the date range changes.
-  // Resolves with { subscriptions, revenue, payment_modes }.
+  // Resolves with { subscriptions, revenue, payment_modes, attendance }.
   const { data, isLoading, isError } = useQuery({
     queryKey: ["dashboard", range.startDate, range.endDate],
     queryFn: () =>
@@ -205,6 +225,13 @@ function Dashboard() {
     paymentmode: (
       <PaymentModeChart
         modes={data?.payment_modes}
+        isLoading={isLoading}
+        isError={isError}
+      />
+    ),
+    attendance: (
+      <AttendanceGenderChart
+        attendance={data?.attendance}
         isLoading={isLoading}
         isError={isError}
       />
