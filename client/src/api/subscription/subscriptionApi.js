@@ -86,3 +86,30 @@ export const getSubscriptionList = (params = {}) => {
     .get("/subscription/list", { params: cleanParams })
     .then((res) => res.data.data);
 };
+
+// GET /api/subscription/due
+// params: { page, limit, search }
+//   page (default 1), limit (default 10, max 100), search (bill no, member ID
+//   or phone). No date range: every bill that still owes money is included.
+// Due = part paid (has a balance record), balance not written off, not
+// cancelled. Oldest bill first. Only roles 1, 2 and 3 may call it (403
+// otherwise). The branch comes from the logged-in user.
+// Response: { success, message, data: { bills, totals, pagination } }
+//   bills:      [{ bill_no, bill_date, member: { id, member_id, name, phone, avatar_url },
+//                  item_count, total_minor, paid_minor, balance_minor,
+//                  payment: { status, method, paid_on, balance, balance_status } }]
+//   totals:     { bill_count, total_amount, total_paid, total_balance }
+//               (minor units, every matching bill - not just this page)
+//   pagination: { page, limit, total, totalPages, hasNextPage, hasPreviousPage }
+export const getDueBillList = (params = {}) => {
+  // Drop empty values so we never send ?search=
+  const cleanParams = Object.fromEntries(
+    Object.entries(params).filter(
+      ([, value]) => value !== undefined && value !== null && value !== "",
+    ),
+  );
+
+  return api
+    .get("/subscription/due", { params: cleanParams })
+    .then((res) => res.data.data);
+};

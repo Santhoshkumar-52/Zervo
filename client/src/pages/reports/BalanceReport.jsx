@@ -1,36 +1,19 @@
-import { Wallet } from "lucide-react";
-
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import Title from "@/components/additonal/Title";
+
+import BalanceReportList from "./balance/BalanceReportList";
 
 function BalanceReport() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Title
         title="Balance report"
-        description="Payments received and balances still due from members."
+        description="Bills with an amount still due from members, oldest first."
       />
 
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Wallet className="size-5" />
-            Balance report
-          </CardTitle>
-
-          <CardDescription>Nothing here yet.</CardDescription>
-        </CardHeader>
-
         <CardContent>
-          <p className="text-sm text-muted-foreground">
-            This report is under construction.
-          </p>
+          <BalanceReportList />
         </CardContent>
       </Card>
     </div>

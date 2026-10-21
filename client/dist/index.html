@@ -2,13 +2,101 @@
 <html lang="en" class="scrollbar-theme">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>client</title>
-    <script type="module" crossorigin src="/assets/index-BkQxTBMo.js"></script>
+
+    <!-- Primary SEO -->
+    <title>Zervo | Gym Management Software</title>
+    <meta
+      name="description"
+      content="Manage your gym operations with Zervo. Simplify member management, memberships, subscriptions, payments, attendance, trainers, and branch operations in one platform."
+    />
+    <meta
+      name="keywords"
+      content="Zervo, gym management software, fitness CRM, gym CRM, gym member management, membership management, gym billing software, gym attendance tracking, fitness business management"
+    />
+    <meta name="author" content="Zervo" />
+    <meta name="application-name" content="Zervo" />
+    <meta name="robots" content="index, follow" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+
+    <!-- Browser Theme -->
+    <meta name="theme-color" content="#171717" />
+    <meta name="color-scheme" content="light dark" />
+
+    <!-- Favicon: Cloudinary primary -->
+    <link
+      id="favicon"
+      rel="icon"
+      type="image/png"
+      href="https://res.cloudinary.com/samxg4vp/image/upload/v1791735500/Zervo_Futuristic_Fitness_Logo_kpsxpd.png"
+    />
+
+    <!-- Local favicon fallback -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Apple Devices -->
+    <link
+      rel="apple-touch-icon"
+      href="https://res.cloudinary.com/samxg4vp/image/upload/v1791735500/Zervo_Futuristic_Fitness_Logo_kpsxpd.png"
+    />
+
+    <!-- Open Graph: Facebook, LinkedIn, messaging previews -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Zervo" />
+    <meta property="og:title" content="Zervo | Gym Management Software" />
+    <meta
+      property="og:description"
+      content="Simplify gym operations with Zervo. Manage members, memberships, subscriptions, payments, attendance, trainers, and branches in one platform."
+    />
+    <meta
+      property="og:image"
+      content="https://res.cloudinary.com/samxg4vp/image/upload/v1791735500/Zervo_Futuristic_Fitness_Logo_kpsxpd.png"
+    />
+    <meta
+      property="og:image:alt"
+      content="Zervo gym management software logo"
+    />
+
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Zervo | Gym Management Software" />
+    <meta
+      name="twitter:description"
+      content="Manage your fitness business efficiently with Zervo's gym management and CRM platform."
+    />
+    <meta
+      name="twitter:image"
+      content="https://res.cloudinary.com/samxg4vp/image/upload/v1791735500/Zervo_Futuristic_Fitness_Logo_kpsxpd.png"
+    />
+    <meta
+      name="twitter:image:alt"
+      content="Zervo gym management software logo"
+    />
+
+    <!-- Canonical URL: replace with your actual production domain -->
+    <!-- <link rel="canonical" href="https://your-domain.com/" /> -->
+    <script type="module" crossorigin src="/assets/index-E-LzRHeS.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-_XYGfsy-.css">
   </head>
+
   <body>
     <div id="root"></div>
+
+    <!-- Favicon fallback if Cloudinary fails -->
+    <script>
+      (() => {
+        const favicon = document.getElementById("favicon");
+        const fallbackUrl = "/favicon.svg";
+
+        const image = new Image();
+
+        image.onerror = () => {
+          favicon.href = fallbackUrl;
+          favicon.type = "image/svg+xml";
+        };
+
+        image.src = favicon.href;
+      })();
+    </script>
   </body>
 </html>
