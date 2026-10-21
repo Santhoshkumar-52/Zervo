@@ -13,14 +13,16 @@ const getInitials = (name) =>
     .join("") || "?";
 
 // Handlers: { onEdit, onDelete, onToggleStatus, isStatusUpdating(member),
-//             onViewProfile(memberId) }
-// onViewProfile is called when the member name is clicked.
+//             onViewProfile(memberId), onViewTrainer(staffId) }
+// onViewProfile is called when the member name is clicked, onViewTrainer when
+// the assigned trainer's name is clicked.
 export const getMembersColumns = ({
   onEdit,
   onDelete,
   onToggleStatus,
   isStatusUpdating,
   onViewProfile,
+  onViewTrainer,
 } = {}) => [
   {
     accessorKey: "id",
@@ -78,10 +80,42 @@ export const getMembersColumns = ({
   {
     accessorKey: "trainer_name",
     header: "Trainer",
-    cell: ({ row }) =>
-      row.original.trainer_name || (
-        <span className="text-muted-foreground">Unassigned</span>
-      ),
+    cell: ({ row }) => {
+      const {
+        trainer_name: name,
+        trainer_avatar_url: avatarUrl,
+        assigned_trainer_id: trainerId,
+      } = row.original;
+
+      if (!name) {
+        return <span className="text-muted-foreground">Unassigned</span>;
+      }
+
+      return (
+        <div className="flex items-center gap-2.5">
+          <Avatar>
+            {avatarUrl && <AvatarImage src={avatarUrl} alt="" />}
+
+            <AvatarFallback className="text-xs">
+              {getInitials(name)}
+            </AvatarFallback>
+          </Avatar>
+
+          {trainerId && onViewTrainer ? (
+            <button
+              type="button"
+              onClick={() => onViewTrainer(trainerId)}
+              aria-label={`View profile of ${name}`}
+              className="cursor-pointer rounded-sm text-left hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+            >
+              {name}
+            </button>
+          ) : (
+            <span>{name}</span>
+          )}
+        </div>
+      );
+    },
   },
   {
     accessorKey: "is_active",

@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { UserCog, SearchX } from "lucide-react";
 
 import AppAlertDialog from "@/components/additonal/AlertDialog";
 import DataTable from "@/components/additonal/Datatable/DataTable";
+import StaffProfileViewer from "@/components/additonal/StaffProfileViewer";
 import { useStaffStore } from "@/store/staff";
 
 import EditStaffDialog from "./EditStaffDialog";
@@ -68,6 +69,10 @@ function StaffList() {
   // stays after the dialog closes so its content does not flicker.
   const [editOpen, setEditOpen] = useState(false);
 
+  // Staff member whose profile modal is open (opened by clicking a name).
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileStaffId, setProfileStaffId] = useState(null);
+
   // Kept while the dialog animates closed so its text does not flicker.
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [staffToDelete, setStaffToDelete] = useState(null);
@@ -91,14 +96,23 @@ function StaffList() {
     fetchStaff();
   }, [fetchStaff, appliedSearch, pagination.pageIndex, pagination.pageSize]);
 
+  const handleEdit = useCallback(
+    (member) => {
+      // Show the row's data straight away, then refresh it by id.
+      selectStaff(member);
+      setEditOpen(true);
+      fetchStaffById(member.id).catch(() => setEditOpen(false));
+    },
+    [selectStaff, fetchStaffById],
+  );
+
   const columns = useMemo(
     () =>
       getStaffColumns({
-        onEdit: (member) => {
-          // Show the row's data straight away, then refresh it by id.
-          selectStaff(member);
-          setEditOpen(true);
-          fetchStaffById(member.id).catch(() => setEditOpen(false));
+        onEdit: handleEdit,
+        onViewProfile: (staffId) => {
+          setProfileStaffId(staffId);
+          setProfileOpen(true);
         },
         onDelete: (member) => {
           setStaffToDelete(member);
@@ -111,7 +125,7 @@ function StaffList() {
         },
         isStatusUpdating: (member) => statusUpdatingIds.includes(member.id),
       }),
-    [selectStaff, fetchStaffById, statusUpdatingIds],
+    [handleEdit, statusUpdatingIds],
   );
 
   return (
@@ -147,6 +161,19 @@ function StaffList() {
         isStaffLoading={isSelectedLoading}
         isLoading={isSaving}
         onSubmit={(values, member) => updateStaff(member.id, values)}
+      />
+
+      {/* Read-only profile. Loads the staff member by id on open. */}
+      <StaffProfileViewer
+        open={profileOpen}
+        onOpenChange={setProfileOpen}
+        staffId={profileStaffId}
+        onEdit={(staffId) => {
+          // The profile was opened from a row, so the row is in the list.
+          const member = staff.find((item) => item.id === staffId);
+
+          if (member) handleEdit(member);
+        }}
       />
 
       <AppAlertDialog

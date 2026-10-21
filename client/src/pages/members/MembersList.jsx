@@ -4,6 +4,8 @@ import { Users, SearchX } from "lucide-react";
 import AppAlertDialog from "@/components/additonal/AlertDialog";
 import DataTable from "@/components/additonal/Datatable/DataTable";
 import ProfileViewer from "@/components/additonal/ProfileViewer";
+import StaffProfileViewer from "@/components/additonal/StaffProfileViewer";
+import StaffEditor from "@/pages/staff/StaffEditor";
 import { useMemberStore } from "@/store/member";
 
 import EditMemberDialog from "./EditMemberDialog";
@@ -76,6 +78,11 @@ function MembersList() {
 
   // Member whose profile modal is open (opened by clicking a name).
   const [profileOpen, setProfileOpen] = useState(false);
+
+  // Trainer whose profile modal is open (opened by clicking a trainer name).
+  const [trainerId, setTrainerId] = useState(null);
+  const [trainerOpen, setTrainerOpen] = useState(false);
+  const [trainerEditOpen, setTrainerEditOpen] = useState(false);
   const [profileMemberId, setProfileMemberId] = useState(null);
 
   // { member, isActive } for the status confirmation dialog.
@@ -121,6 +128,10 @@ function MembersList() {
           setStatusOpen(true);
         },
         isStatusUpdating: (member) => statusUpdatingIds.includes(member.id),
+        onViewTrainer: (staffId) => {
+          setTrainerId(staffId);
+          setTrainerOpen(true);
+        },
         onViewProfile: (memberId) => {
           setProfileMemberId(memberId);
           setProfileOpen(true);
@@ -175,6 +186,22 @@ function MembersList() {
 
           if (member) handleEdit(member);
         }}
+      />
+
+      {/* Trainer profile. Edit opens the staff edit dialog; a saved change
+          (for example a new name) is pulled into the table by a refetch. */}
+      <StaffProfileViewer
+        open={trainerOpen}
+        onOpenChange={setTrainerOpen}
+        staffId={trainerId}
+        onEdit={() => setTrainerEditOpen(true)}
+      />
+
+      <StaffEditor
+        open={trainerEditOpen}
+        onOpenChange={setTrainerEditOpen}
+        staffId={trainerId}
+        onSaved={fetchMembers}
       />
 
       <AppAlertDialog

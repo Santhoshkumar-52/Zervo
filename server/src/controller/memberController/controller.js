@@ -31,6 +31,7 @@ const MEMBER_COLUMNS = [
   "users.id as trainer_id",
   "users.full_name as trainer_name",
   "users.email as trainer_email",
+  "users.avatar_url as trainer_avatar_url",
 ];
 
 const parseId = (value) => {

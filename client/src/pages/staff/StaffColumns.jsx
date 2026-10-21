@@ -18,12 +18,15 @@ const getInitials = (name = "") =>
     .map((part) => part[0].toUpperCase())
     .join("");
 
-// Handlers: { onEdit, onDelete, onToggleStatus, isStatusUpdating(staff) }
+// Handlers: { onEdit, onDelete, onToggleStatus, isStatusUpdating(staff),
+//             onViewProfile(staffId) }
+// onViewProfile is called when the staff name is clicked.
 export const getStaffColumns = ({
   onEdit,
   onDelete,
   onToggleStatus,
   isStatusUpdating,
+  onViewProfile,
 } = {}) => [
   {
     accessorKey: "user_id",
@@ -41,7 +44,18 @@ export const getStaffColumns = ({
           />
           <AvatarFallback>{getInitials(row.original.full_name)}</AvatarFallback>
         </Avatar>
-        <span>{row.original.full_name}</span>
+        {row.original.full_name && onViewProfile ? (
+          <button
+            type="button"
+            onClick={() => onViewProfile(row.original.id)}
+            aria-label={`View profile of ${row.original.full_name}`}
+            className="cursor-pointer rounded-sm text-left font-medium hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+          >
+            {row.original.full_name}
+          </button>
+        ) : (
+          <span>{row.original.full_name}</span>
+        )}
       </div>
     ),
   },
