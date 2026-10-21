@@ -63,6 +63,7 @@ const duplicateResponse = (res, error) => {
 };
 
 // GET /api/staff?page&limit&search&role&isActive
+// `search` matches full name, email, user ID or group name (owner, manager ...).
 const getStaffList = async (req, res) => {
   try {
     const { branchId } = req.user;
@@ -92,7 +93,8 @@ const getStaffList = async (req, res) => {
         query
           .where("users.full_name", "like", `%${search}%`)
           .orWhere("users.email", "like", `%${search}%`)
-          .orWhere("users.user_id", "like", `%${search}%`);
+          .orWhere("users.user_id", "like", `%${search}%`)
+          .orWhere("groups.name", "like", `%${search}%`);
       });
     }
 

@@ -1,6 +1,10 @@
 const db = require("../../config/knexfile");
 const { successResponse, errorResponse } = require("../../utils/response");
-const { checkInSchema, formatZodError } = require("./schema");
+const {
+  checkInSchema,
+  checkInStaffSchema,
+  formatZodError,
+} = require("./schema");
 
 // A plan that ends within this many days is reported as "expiring soon".
 const EXPIRING_SOON_DAYS = 7;
@@ -166,6 +170,101 @@ const checkInMember = async (req, res) => {
   }
 };
 
+// Staff member of the logged-in user's branch, found by the business ID
+// (users.user_id). Soft-deleted rows are hidden. Never select `password`.
+const findStaffMember = (userNo, branchId) =>
+  db("users")
+    .join("branches", "users.branch_id", "branches.id")
+    .join("groups", "users.group_id", "groups.id")
+    .where("users.user_id", userNo)
+    .where("users.branch_id", branchId)
+    .whereNull("users.deleted_at")
+    .first(
+      "users.id",
+      "users.user_id",
+      "users.branch_id",
+      "users.full_name",
+      "users.email",
+      "users.gender",
+      "users.avatar_url",
+      "users.is_active",
+      "branches.name as branch_name",
+      "groups.name as group_name",
+    );
+
+// POST /api/staff/attendance/check-in   body: { user_id }
+// branch_id and created_by come from the logged-in user. Staff have no plan,
+// so there is no subscription check; checkout is filled in later.
+const checkInStaff = async (req, res) => {
+  try {
+    const parsed = checkInStaffSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+      return errorResponse(
+        res,
+        "Validation failed",
+        400,
+        formatZodError(parsed.error),
+      );
+    }
+
+    const { branchId, userId } = req.user;
+    const userNo = parsed.data.user_id;
+
+    // 1. Staff member must exist in this branch.
+    const staff = await findStaffMember(userNo, branchId);
+
+    if (!staff) {
+      return errorResponse(res, "Staff not found in this branch", 404);
+    }
+
+    if (!staff.is_active) {
+      return errorResponse(res, "Staff is inactive", 403);
+    }
+
+    // Record the check-in.
+    const [attendanceId] = await db("staff_attendance").insert({
+      user_id: staff.id,
+      branch_id: branchId,
+      checkinat: db.fn.now(),
+      created_by: userId,
+      updated_by: userId,
+    });
+
+    const attendance = await db("staff_attendance")
+      .where("id", attendanceId)
+      .first("id", "checkinat");
+
+    // 2. Details for the front desk screen.
+    return successResponse(
+      res,
+      {
+        attendance: {
+          id: attendance.id,
+          checkin_at: attendance.checkinat,
+        },
+        staff: {
+          id: staff.id,
+          user_id: staff.user_id,
+          name: staff.full_name,
+          email: staff.email,
+          gender: staff.gender,
+          avatar_url: staff.avatar_url,
+          branch_name: staff.branch_name,
+          group_name: staff.group_name,
+        },
+      },
+      "Check-in successful",
+      201,
+    );
+  } catch (error) {
+    console.error("Error checking in staff:", error);
+
+    return errorResponse(res, "Internal server error", 500);
+  }
+};
+
 module.exports = {
   checkInMember,
+  checkInStaff,
 };
