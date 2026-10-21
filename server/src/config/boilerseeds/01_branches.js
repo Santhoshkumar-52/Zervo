@@ -1,0 +1,35 @@
+export async function seed(knex) {
+  // 1/4 of branches -> groups -> users -> members. members reference branches (ON DELETE RESTRICT), so clear them first.
+  // users.branch_id is ON DELETE SET NULL; the users seed re-creates users afterwards.
+  await knex("members").del();
+  await knex("branches").del();
+
+  await knex("branches").insert([
+    {
+      name: "Main Branch",
+      code: "MAIN",
+      address: "Chennai",
+      phone: "04412345678",
+      created_at: new Date(),
+      updated_at: new Date(),
+      subbill_url: "https://example.com/",
+      logo: "https://res.cloudinary.com/samxg4vp/image/upload/v1791735500/Zervo_Futuristic_Fitness_Logo_kpsxpd.png",
+      attend_background:
+        "https://res.cloudinary.com/samxg4vp/image/upload/v1792081467/istockphoto-610431768-1024x1024_mkqsfc.jpg",
+      currency: "₹",
+    },
+    {
+      name: "Anna Nagar Branch",
+      code: "ANNA-NAGAR",
+      address: "Anna Nagar, Chennai",
+      phone: "04412345679",
+      created_at: new Date(),
+      updated_at: new Date(),
+      subbill_url: "https://example.com/",
+      logo: "https://res.cloudinary.com/samxg4vp/image/upload/v1791735500/Zervo_Futuristic_Fitness_Logo_kpsxpd.png",
+      currency: "₹",
+      attend_background:
+        "https://res.cloudinary.com/samxg4vp/image/upload/v1792081467/istockphoto-610431768-1024x1024_mkqsfc.jpg",
+    },
+  ]);
+}

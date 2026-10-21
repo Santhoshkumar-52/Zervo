@@ -9,7 +9,8 @@
     "dev": "concurrently \"nodemon index.js\" \"cd ../client && npm run dev\"",
     "fresh": "knex migrate:rollback --all && knex migrate:latest && knex seed:run",
     "migrate": "knex migrate:latest",
-    "seed": "knex seed:run"
+    "seed": "knex seed:run",
+    "cleardb": "knex migrate:rollback --all"
   },
   "keywords": [],
   "author": "",

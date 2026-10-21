@@ -60,6 +60,10 @@ export function ChartXLabels({ points, innerWidth, y, formatLabel }) {
   );
 }
 
+// Look of every tooltip.
+const TOOLTIP_CLASS =
+  "pointer-events-none absolute z-10 whitespace-nowrap rounded-md border bg-popover px-2.5 py-1.5 text-xs text-popover-foreground shadow-md";
+
 // Hover card above the active point: { x, y, label, value }. It stays inside
 // the chart width.
 export function ChartTooltip({
@@ -71,7 +75,7 @@ export function ChartTooltip({
 }) {
   return (
     <div
-      className="pointer-events-none absolute z-10 rounded-md border bg-popover px-2.5 py-1.5 text-xs text-popover-foreground shadow-md"
+      className={TOOLTIP_CLASS}
       style={{
         left: Math.min(Math.max(point.x, 56), width - 56),
         top: Math.max(point.y - 12, 0),
@@ -82,6 +86,43 @@ export function ChartTooltip({
       <div className="font-medium">
         {valueLabel}: {formatValue(point.value)}
       </div>
+    </div>
+  );
+}
+
+// Hover card with any content, placed next to a spot of the chart (x, y in px
+// from the chart's top left). It sits above the spot, or below it when there
+// is no room above, and stays inside the chart width.
+export function ChartTooltipBox({ x, y, width, children }) {
+  const below = y < 72;
+
+  return (
+    <div
+      className={TOOLTIP_CLASS}
+      style={{
+        left: Math.min(Math.max(x, 72), Math.max(width - 72, 72)),
+        top: below ? y + 16 : y - 12,
+        transform: below ? "translate(-50%, 0)" : "translate(-50%, -100%)",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+// Colour key for a split chart: items are { key, name, color }.
+export function ChartLegend({ items }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pb-2 text-xs text-muted-foreground">
+      {items.map((item) => (
+        <span key={item.key} className="flex items-center gap-1.5">
+          <span
+            className="size-2.5 rounded-sm"
+            style={{ backgroundColor: item.color }}
+          />
+          {item.name}
+        </span>
+      ))}
     </div>
   );
 }

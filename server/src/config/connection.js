@@ -19,7 +19,9 @@ module.exports = {
 
     seeds: {
       directory: path.join(__dirname, "..", "config", "seeds"),
+      // directory: path.join(__dirname, "..", "config", "boilerseeds"), for default value alone
     },
+    
   },
 
   production: {

@@ -40,3 +40,16 @@ export const getLabelEvery = (pointCount, innerWidth) => {
 
   return Math.max(Math.ceil(pointCount / fit), 1);
 };
+
+// Colours for the parts of a split chart (for example one per plan). They come
+// from the theme, so they follow the selected theme and light / dark mode.
+const SERIES_COLORS = [
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+];
+
+export const getSeriesColor = (index) =>
+  SERIES_COLORS[index % SERIES_COLORS.length];

@@ -3,6 +3,14 @@ export {
   defaultFormatLabel,
   defaultFormatValue,
   getNiceMax,
+  getSeriesColor,
+  Y_TICKS,
 } from "./chartUtils";
 export { useElementWidth } from "./useElementWidth";
-export { ChartGrid, ChartTooltip, ChartXLabels } from "./ChartParts";
+export {
+  ChartGrid,
+  ChartLegend,
+  ChartTooltip,
+  ChartTooltipBox,
+  ChartXLabels,
+} from "./ChartParts";
