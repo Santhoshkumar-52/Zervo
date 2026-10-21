@@ -176,7 +176,62 @@ const getmembers = async (req, res) => {
   }
 };
 
-// GET /api/member/:id   (used to load the edit form)
+// The member's latest subscription for the profile view: the plan running
+// today if there is one, otherwise the most recent (upcoming or expired).
+// Returns null when the member never subscribed. Money is in paise. Dates are
+// compared and counted in SQL so the server timezone cannot shift them.
+const findMemberSubscription = async (memberId, branchId) => {
+  const row = await db("subs_summ")
+    .where({ member_id: memberId, branch_id: branchId })
+    .whereNull("deleted_at")
+    .orderByRaw(
+      "(subs_summ.start_date <= CURDATE() AND subs_summ.end_date >= CURDATE()) DESC",
+    )
+    .orderBy("subs_summ.end_date", "desc")
+    .orderBy("subs_summ.id", "desc")
+    .first(
+      "id",
+      "bill_no",
+      "subscription_no",
+      "total_price",
+      db.raw("DATE_FORMAT(start_date, '%Y-%m-%d') as start_date"),
+      db.raw("DATE_FORMAT(end_date, '%Y-%m-%d') as end_date"),
+      db.raw(
+        "CASE WHEN start_date > CURDATE() THEN 'upcoming' WHEN end_date < CURDATE() THEN 'expired' ELSE 'active' END as status",
+      ),
+      db.raw("DATEDIFF(end_date, CURDATE()) as days_left"),
+    );
+
+  if (!row) return null;
+
+  const items = await db("subs_items")
+    .where("subs_summ_id", row.id)
+    .whereNull("deleted_at")
+    .orderBy("id")
+    .select(
+      "item_type",
+      "item_name",
+      "quantity",
+      db.raw("DATE_FORMAT(start_date, '%Y-%m-%d') as start_date"),
+      db.raw("DATE_FORMAT(end_date, '%Y-%m-%d') as end_date"),
+    );
+
+  return {
+    bill_no: row.bill_no,
+    subscription_no: row.subscription_no,
+    status: row.status,
+    start_date: row.start_date,
+    end_date: row.end_date,
+    // Only meaningful while the plan is running.
+    days_left: row.status === "active" ? Number(row.days_left) : null,
+    total_price: Number(row.total_price),
+    items,
+  };
+};
+
+// GET /api/member/:id   (used to load the edit form and the profile viewer)
+// Response data: { member, subscription } - subscription is null when the
+// member has none.
 const getMemberById = async (req, res) => {
   try {
     const id = parseId(req.params.id);
@@ -187,7 +242,16 @@ const getMemberById = async (req, res) => {
 
     if (!member) return errorResponse(res, "Member not found", 404);
 
-    return successResponse(res, { member }, "Member fetched successfully");
+    const subscription = await findMemberSubscription(
+      member.id,
+      req.user.branchId,
+    );
+
+    return successResponse(
+      res,
+      { member, subscription },
+      "Member fetched successfully",
+    );
   } catch (error) {
     console.error("Error fetching member:", error);
 

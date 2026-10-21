@@ -18,7 +18,12 @@ export const getMembers = (params = {}) => {
 };
 
 // GET /api/member/:id
-// Response: { success, message, data: { member } }
+// Response: { success, message, data: { member, subscription } }
+//   subscription: the plan running today, else the most recent one, else null:
+//   { bill_no, subscription_no, status ("active" | "upcoming" | "expired"),
+//     start_date, end_date, days_left (active only, else null),
+//     total_price (paise), items: [{ item_type, item_name, quantity,
+//     start_date, end_date }] }
 export const getMemberById = (id) => api.get(`/member/${id}`);
 
 // POST /api/member

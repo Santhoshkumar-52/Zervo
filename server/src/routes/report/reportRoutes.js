@@ -2,6 +2,7 @@ const express = require("express");
 
 const {
   getAttendanceReport,
+  getStaffAttendanceReport,
 } = require("../../controller/reportController/controller");
 const authorizeRoles = require("../../middleware/auth/authorizeRoles");
 
@@ -17,5 +18,10 @@ router.use(authorizeRoles(1, 2, 3));
 //     search matches member_Id, phone or name; roles 1, 2 and 3 only.
 //     -> { records, pagination }
 router.get("/attendance", getAttendanceReport);
+
+// GET /api/report/staff-attendance?page=1&limit=10&search= -> paginated staff check-ins of a date range
+//     same date range as above; search matches user ID, name, email or group name.
+//     -> { records, pagination }
+router.get("/staff-attendance", getStaffAttendanceReport);
 
 module.exports = router;

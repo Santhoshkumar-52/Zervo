@@ -26,3 +26,27 @@ export const getAttendanceReport = (params = {}) => {
     .get("/report/attendance", { params: cleanParams })
     .then((res) => res.data.data);
 };
+
+// GET /api/report/staff-attendance
+// params: { start_date, end_date, page, limit, search }
+//   Same as getAttendanceReport; search matches the staff user ID, name, email
+//   or group name.
+// Response: { success, message, data: { records, pagination } }
+//   records:    [{ id, attendance_date, checkin_at, checkout_at,
+//                  duration_minutes (null until checked out),
+//                  system_checkout (true = automatic, false = manual,
+//                                   null = not checked out),
+//                  staff: { id, user_id, name, email, group_name } }]
+//   pagination: { page, limit, total, totalPages, hasNextPage, hasPreviousPage }
+export const getStaffAttendanceReport = (params = {}) => {
+  // Drop empty values so we never send ?search=
+  const cleanParams = Object.fromEntries(
+    Object.entries(params).filter(
+      ([, value]) => value !== undefined && value !== null && value !== "",
+    ),
+  );
+
+  return api
+    .get("/report/staff-attendance", { params: cleanParams })
+    .then((res) => res.data.data);
+};
