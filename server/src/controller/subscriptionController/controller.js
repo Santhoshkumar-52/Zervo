@@ -21,6 +21,7 @@ const {
   findSummaryBill,
   findSubscriptionList,
   findDueBillList,
+  findBillDetails,
 } = require("./billStore");
 
 // Every lookup is scoped to the logged-in user's branch and hides soft-deleted
@@ -463,6 +464,33 @@ const getDueBillList = async (req, res) => {
   }
 };
 
+// GET /api/subscription/details?bill_no=
+// One bill of the logged-in user's branch with its transactions so far: the
+// summary bill (branch, summary, member, items, payment, issued_by) plus
+// `transactions` (the payments received) and `balance` (paid, still owed,
+// written off, is_due). 404 when the bill is not in this branch.
+const getBillDetails = async (req, res) => {
+  try {
+    const billNo = Number(req.query.bill_no);
+
+    if (!Number.isInteger(billNo) || billNo <= 0) {
+      return errorResponse(res, "Validation failed", 400, [
+        { field: "bill_no", message: "A valid bill number is required" },
+      ]);
+    }
+
+    const bill = await findBillDetails(req.user.branchId, billNo);
+
+    if (!bill) return errorResponse(res, "Bill not found", 404);
+
+    return successResponse(res, bill, "Bill details fetched successfully");
+  } catch (error) {
+    console.error("Error fetching bill details:", error);
+
+    return errorResponse(res, "Internal server error", 500);
+  }
+};
+
 module.exports = {
   getBillItems,
   addBillItem,
@@ -470,4 +498,5 @@ module.exports = {
   getSummaryBill,
   getSubscriptionList,
   getDueBillList,
+  getBillDetails,
 };

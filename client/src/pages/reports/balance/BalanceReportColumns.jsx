@@ -1,5 +1,3 @@
-import { Eye } from "lucide-react";
-
 import { formatDate } from "@/components/additonal/SummaryBill/billHelpers";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -16,12 +14,31 @@ const getInitials = (name) =>
     .map((part) => part.charAt(0).toUpperCase())
     .join("") || "?";
 
-// Handlers: { onView(bill), onViewProfile(memberId) }
-// onViewProfile is called when the member name is clicked.
-export const getBalanceReportColumns = ({ onView, onViewProfile } = {}) => [
+// Handlers: { onView(bill), onViewProfile(memberId), onPay(bill) }
+// onView is called when the bill no is clicked, onViewProfile when the member
+// name is clicked, onPay by the Pay button (the button stays disabled until a
+// handler is given).
+export const getBalanceReportColumns = ({
+  onView,
+  onViewProfile,
+  onPay,
+} = {}) => [
   {
     accessorKey: "bill_no",
     header: "Bill no",
+    cell: ({ row }) =>
+      onView ? (
+        <button
+          type="button"
+          onClick={() => onView(row.original)}
+          aria-label={`Open bill ${row.original.bill_no}`}
+          className="cursor-pointer rounded-sm font-medium tabular-nums hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+        >
+          {row.original.bill_no}
+        </button>
+      ) : (
+        row.original.bill_no
+      ),
   },
   {
     accessorKey: "bill_date",
@@ -107,12 +124,13 @@ export const getBalanceReportColumns = ({ onView, onViewProfile } = {}) => [
     enableSorting: false,
     cell: ({ row }) => (
       <Button
-        variant="ghost"
-        size="icon"
-        aria-label={`View bill ${row.original.bill_no}`}
-        onClick={() => onView?.(row.original)}
+        variant="outline"
+        size="sm"
+        aria-label={`Pay balance of bill ${row.original.bill_no}`}
+        disabled={!onPay}
+        onClick={() => onPay?.(row.original)}
       >
-        <Eye />
+        Pay
       </Button>
     ),
   },

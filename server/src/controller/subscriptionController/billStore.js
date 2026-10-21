@@ -690,6 +690,94 @@ const findDueBillList = async (branchId, { search, page, limit }) => {
   };
 };
 
+// Money received on a bill, oldest first. The server has no transaction table
+// yet: the only payment a bill has is the one saved on its payments_status
+// rows (every row of a bill carries the same payment, so the newest row speaks
+// for it). A bill that is still a draft or was cancelled has no transactions.
+// All amounts are minor units.
+const findBillTransactions = async (branchId, billNo) => {
+  const row = await db("payments_status as ps")
+    .leftJoin("payments as p", "p.id", "ps.payment_id")
+    .leftJoin("users as u", "u.id", "ps.updated_by")
+    .where({ "ps.branch_id": branchId, "ps.subs_billno": String(billNo) })
+    .orderBy("ps.id", "desc")
+    .first(
+      "ps.id",
+      "ps.payment_id",
+      "ps.payments_status",
+      "ps.paid_price",
+      "ps.change",
+      "ps.updated_at",
+      "p.payment_name",
+      "u.full_name as received_by",
+    );
+
+  const isReceived =
+    row?.payment_id && ["completed", "pending"].includes(row.payments_status);
+
+  if (!isReceived) return [];
+
+  const paid = Number(row.paid_price);
+  const change = Number(row.change);
+
+  return [
+    {
+      id: row.id,
+      type: "payment",
+      payment_id: row.payment_id,
+      method: row.payment_name ?? null,
+      status: row.payments_status,
+      paid_minor: paid,
+      change_minor: change,
+      received_minor: Math.max(paid - change, 0),
+      paid_on: row.updated_at,
+      received_by: row.received_by ?? null,
+    },
+  ];
+};
+
+// One bill with everything known about it: the summary bill (branch, summary,
+// member, items, payment, issued_by), the transactions so far and the balance
+// position. null when the bill is not in the branch.
+//   balance.paid_minor     paid_amount of the bill's subs_balance record, else
+//                          what the transactions received
+//   balance.balance_minor  what is still owed (0 when clear)
+//   balance.written_off    true when the balance was written off
+//   balance.is_due         owed, not written off and not cancelled
+const findBillDetails = async (branchId, billNo) => {
+  const bill = await findSummaryBill(branchId, billNo);
+
+  if (!bill) return null;
+
+  const [transactions, balanceRow] = await Promise.all([
+    findBillTransactions(branchId, billNo),
+    db("subs_balance")
+      .where({ branch_id: branchId, bill_no: billNo })
+      .whereNull("deleted_at")
+      .orderBy("id")
+      .first("paid_amount", "written_off"),
+  ]);
+
+  const receivedTotal = transactions.reduce(
+    (sum, transaction) => sum + transaction.received_minor,
+    0,
+  );
+  const writtenOff = Boolean(balanceRow?.written_off);
+  const balanceMinor = bill.payment.balance;
+
+  return {
+    ...bill,
+    transactions,
+    balance: {
+      paid_minor: balanceRow ? Number(balanceRow.paid_amount) : receivedTotal,
+      balance_minor: balanceMinor,
+      written_off: writtenOff,
+      is_due:
+        balanceMinor > 0 && !writtenOff && bill.payment.status !== "cancelled",
+    },
+  };
+};
+
 module.exports = {
   generateBillNo,
   getItems,
@@ -700,4 +788,5 @@ module.exports = {
   findSummaryBill,
   findSubscriptionList,
   findDueBillList,
+  findBillDetails,
 };

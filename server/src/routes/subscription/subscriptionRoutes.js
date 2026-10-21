@@ -7,6 +7,7 @@ const {
   getSummaryBill,
   getSubscriptionList,
   getDueBillList,
+  getBillDetails,
 } = require("../../controller/subscriptionController/controller");
 const authorizeRoles = require("../../middleware/auth/authorizeRoles");
 
@@ -37,11 +38,15 @@ const canListSubscriptions = authorizeRoles(1, 2, 3);
 //      oldest bill first; search matches bill_no, member_Id or phone;
 //      roles 1, 2 and 3 only.
 //      -> { bills, totals, pagination }
+// GET  /api/subscription/details?bill_no= -> one bill with its transactions so far
+//      { branch, summary, member, items, payment, issued_by, transactions, balance };
+//      roles 1, 2 and 3 only; 404 when the bill is not in the user's branch.
 router.get("/items", getBillItems);
 router.post("/items", addBillItem);
 router.get("/summary", getSummaryBill);
 router.post("/payment", completeBillPayment);
 router.get("/list", canListSubscriptions, getSubscriptionList);
 router.get("/due", canListSubscriptions, getDueBillList);
+router.get("/details", canListSubscriptions, getBillDetails);
 
 module.exports = router;
