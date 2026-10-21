@@ -8,6 +8,7 @@ const {
   getSubscriptionList,
   getDueBillList,
   getBillDetails,
+  payDueAmount,
 } = require("../../controller/subscriptionController/controller");
 const authorizeRoles = require("../../middleware/auth/authorizeRoles");
 
@@ -41,12 +42,22 @@ const canListSubscriptions = authorizeRoles(1, 2, 3);
 // GET  /api/subscription/details?bill_no= -> one bill with its transactions so far
 //      { branch, summary, member, items, payment, issued_by, transactions, balance };
 //      roles 1, 2 and 3 only; 404 when the bill is not in the user's branch.
+// POST /api/subscription/due/pay -> pay the due amount of a bill, fully or in part
+//      body: { payment_id, bill_no, paid_amount } (all required; paid_amount in
+//      minor units). The branch and the user come from the token.
+//      Inserts a new subs_balance and a new payments_status record against the
+//      same bill_no: "completed" when the due is cleared, otherwise "pending".
+//      Only cash may be more than the due amount (the rest is change).
+//      roles 1, 2 and 3 only.
+//      -> { bill_no, payment_id, paid_amount, change, paid_total, balance,
+//           payments_status }
 router.get("/items", getBillItems);
 router.post("/items", addBillItem);
 router.get("/summary", getSummaryBill);
 router.post("/payment", completeBillPayment);
 router.get("/list", canListSubscriptions, getSubscriptionList);
 router.get("/due", canListSubscriptions, getDueBillList);
+router.post("/due/pay", canListSubscriptions, payDueAmount);
 router.get("/details", canListSubscriptions, getBillDetails);
 
 module.exports = router;

@@ -7,6 +7,10 @@
  * `bill_no` is not a foreign key because `subs_summ.bill_no` is not unique on
  * its own (it is scoped by branch).
  *
+ * A bill can have several rows: the first part payment and then one row for
+ * every payment of its due amount, all against the same bill_no. So
+ * (branch_id, bill_no) is a plain index, not a unique one.
+ *
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
@@ -46,9 +50,7 @@ exports.up = async function (knex) {
     table.timestamp("deleted_at").nullable();
 
     // Indexes
-    table.unique(["branch_id", "bill_no"], {
-      indexName: "uq_subs_balance_branch_bill_no",
-    });
+    table.index(["branch_id", "bill_no"], "idx_subs_balance_branch_bill_no");
 
     // Foreign keys
     table

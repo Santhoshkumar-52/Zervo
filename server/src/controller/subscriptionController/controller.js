@@ -8,6 +8,7 @@ const {
 const {
   addItemSchema,
   completePaymentSchema,
+  payDueSchema,
   listSubscriptionsSchema,
   formatZodError,
 } = require("./schema");
@@ -22,6 +23,7 @@ const {
   findSubscriptionList,
   findDueBillList,
   findBillDetails,
+  payDue,
 } = require("./billStore");
 
 // Every lookup is scoped to the logged-in user's branch and hides soft-deleted
@@ -323,6 +325,67 @@ const completeBillPayment = async (req, res) => {
   }
 };
 
+// POST /api/subscription/due/pay
+// body: { payment_id, bill_no, paid_amount } (all required; paid_amount is in
+// minor units). The branch and the user come from the verified token.
+// Pays all or part of what the bill still owes (grand total minus everything
+// already in subs_balance) by inserting a NEW subs_balance record and a NEW
+// payments_status record against the same bill_no:
+//   paid_amount >= due -> payments_status "completed" (the due is cleared)
+//   paid_amount <  due -> payments_status "pending" (balance still owed)
+// Only cash may be more than the due amount; the extra is given back as change
+// and is not added to subs_balance.
+const payDueAmount = async (req, res) => {
+  try {
+    const parsed = payDueSchema.safeParse(req.body);
+
+    if (!parsed.success) {
+      return errorResponse(
+        res,
+        "Validation failed",
+        400,
+        formatZodError(parsed.error),
+      );
+    }
+
+    const {
+      payment_id: paymentId,
+      bill_no: billNo,
+      paid_amount: paidAmount,
+    } = parsed.data;
+    const { branchId, userId } = req.user;
+
+    const payment = await findPayment(paymentId, branchId);
+
+    if (!payment) {
+      return errorResponse(res, "Payment method not found or inactive", 404);
+    }
+
+    const result = await payDue(branchId, userId, billNo, {
+      paymentId,
+      paidAmount,
+      isCash: payment.id === CASH_PAYMENT_ID,
+    });
+
+    if (result.error) {
+      return errorResponse(res, result.error.message, result.error.status);
+    }
+
+    return successResponse(
+      res,
+      result.data,
+      result.data.payments_status === "completed"
+        ? "Due amount paid in full"
+        : "Part payment recorded, balance still due",
+      201,
+    );
+  } catch (error) {
+    console.error("Error paying due amount:", error);
+
+    return errorResponse(res, "Internal server error", 500);
+  }
+};
+
 // GET /api/subscription/summary?bill_no=
 // The full summary bill (branch, totals, member, items, payment) for one bill
 // of the logged-in user's branch. 404 when the bill is not in this branch.
@@ -499,4 +562,5 @@ module.exports = {
   getSubscriptionList,
   getDueBillList,
   getBillDetails,
+  payDueAmount,
 };

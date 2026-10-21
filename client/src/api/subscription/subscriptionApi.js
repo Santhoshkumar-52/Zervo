@@ -127,3 +127,17 @@ export const getBillDetails = (billNo) =>
   api
     .get("/subscription/details", { params: { bill_no: billNo } })
     .then((res) => res.data.data);
+// POST /api/subscription/due/pay
+// body: { payment_id, bill_no, paid_amount } (all required; paid_amount is in
+// minor units). The branch and the user come from the logged-in user's token,
+// so they are not sent. Only roles 1, 2 and 3 may call it (403 otherwise).
+// Pays all or part of what the bill still owes by adding a new balance record
+// and a new payment record against the same bill_no. The status is "completed"
+// when the due is cleared, otherwise "pending". Only cash (payment_id 1) may be
+// more than the due amount; the extra comes back as change.
+// Response: { success, message, data: { bill_no, payment_id, paid_amount,
+//             change, paid_total, balance, payments_status } }
+// 404 when the bill or payment method is not found; 409 when the bill has no
+// due amount, is cancelled or was written off.
+export const payDueAmount = (payload) =>
+  api.post("/subscription/due/pay", payload).then((res) => res.data.data);

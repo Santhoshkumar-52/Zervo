@@ -140,6 +140,121 @@ const completePayment = (
     }
   });
 
+// Everything paid against a bill in subs_balance. A bill can have several
+// records (the first part payment, then one for every payment of its due
+// amount), so they are added up. Returns null when the bill has no record,
+// otherwise { paid_amount, written_off } (written off when any record is).
+const findBalance = async (branchId, billNo) => {
+  const row = await db("subs_balance")
+    .where({ branch_id: branchId, bill_no: billNo })
+    .whereNull("deleted_at")
+    .select(
+      db.raw("COUNT(*) AS records"),
+      db.raw("COALESCE(SUM(paid_amount), 0) AS paid_amount"),
+      db.raw("COALESCE(MAX(written_off), 0) AS written_off"),
+    )
+    .first();
+
+  if (!Number(row.records)) return null;
+
+  return {
+    paid_amount: Number(row.paid_amount),
+    written_off: Number(row.written_off) > 0,
+  };
+};
+
+const refuse = (status, message) => ({ error: { status, message } });
+
+// Pays all or part of what a bill still owes. The due amount is the bill's
+// grand total minus everything already in subs_balance. One new subs_balance
+// record and one new payments_status record are inserted against the same
+// bill_no, in one transaction. The bill's subs_balance records are locked
+// while the due amount is worked out, so two payments cannot both clear the
+// same due.
+//   paidAmount  what the customer handed over (minor units)
+//   applied     the part of it that settles the due, never more than the due
+//               amount (only cash may hand over more; the rest is change)
+//   status      "completed" when the due is cleared, otherwise "pending"
+// subs_balance gets `applied`; payments_status gets `paidAmount` and the change,
+// like the first payment of a bill.
+// Returns { data } on success, or { error: { status, message } } when the bill
+// cannot take the payment (nothing is written then).
+const payDue = (branchId, userId, billNo, { paymentId, paidAmount, isCash }) =>
+  db.transaction(async (trx) => {
+    const items = await getItems(branchId, billNo, trx);
+
+    if (!items.length) return refuse(404, "Bill not found");
+
+    const records = await trx("subs_balance")
+      .where({ branch_id: branchId, bill_no: billNo })
+      .whereNull("deleted_at")
+      .forUpdate()
+      .select("paid_amount", "written_off");
+
+    if (!records.length) return refuse(409, "This bill has no due amount");
+
+    if (records.some((record) => record.written_off)) {
+      return refuse(409, "The balance of this bill was written off");
+    }
+
+    const latest = await trx("payments_status")
+      .where({ branch_id: branchId, subs_billno: String(billNo) })
+      .orderBy("id", "desc")
+      .first("payments_status");
+
+    if (latest?.payments_status === "cancelled") {
+      return refuse(409, "This bill is cancelled");
+    }
+
+    const paidSoFar = records.reduce(
+      (sum, record) => sum + Number(record.paid_amount),
+      0,
+    );
+    const due = sumTotals(items) - paidSoFar;
+
+    if (due <= 0) return refuse(409, "This bill has no due amount");
+
+    if (!isCash && paidAmount > due) {
+      return refuse(400, "Only cash can be more than the due amount");
+    }
+
+    const applied = Math.min(paidAmount, due);
+    const changePrice = paidAmount - applied;
+    const balance = due - applied;
+    const paymentsStatus = balance === 0 ? "completed" : "pending";
+
+    await trx("subs_balance").insert({
+      bill_no: billNo,
+      branch_id: branchId,
+      paid_amount: applied,
+      created_by: userId,
+      updated_by: userId,
+    });
+
+    await trx("payments_status").insert({
+      subs_billno: String(billNo),
+      branch_id: branchId,
+      payment_id: paymentId,
+      paid_price: paidAmount,
+      change: changePrice,
+      payments_status: paymentsStatus,
+      created_by: userId,
+      updated_by: userId,
+    });
+
+    return {
+      data: {
+        bill_no: billNo,
+        payment_id: paymentId,
+        paid_amount: paidAmount,
+        change: changePrice,
+        paid_total: paidSoFar + applied,
+        balance,
+        payments_status: paymentsStatus,
+      },
+    };
+  });
+
 // The shape the client table reads.
 const toBill = (billNo, items) => ({
   bill_no: billNo,
@@ -244,12 +359,8 @@ const findSummaryBill = async (branchId, billNo) => {
         "ps.updated_at",
         "p.payment_name",
       ),
-    // The bill's first subs_balance record (undefined when it has none).
-    db("subs_balance")
-      .where({ branch_id: branchId, bill_no: billNo })
-      .whereNull("deleted_at")
-      .orderBy("id")
-      .first("paid_amount"),
+    // Everything paid against the bill in subs_balance (null when it has none).
+    findBalance(branchId, billNo),
   ]);
 
   const discountTypes = [
@@ -342,8 +453,8 @@ const METHOD_KEYS = ["cash", "card", "upi"];
 //                goes under other); overall is their sum. Only completed or
 //                pending bills with a payment method count; draft and
 //                cancelled bills are 0.
-//   balance      the bill's first subs_balance record: total_minor minus its
-//                paid_amount while that is still less than the total, else 0
+//   balance      total_minor minus everything paid in the bill's subs_balance
+//                records while that is still less than the total, else 0
 //   balance_status  "due" when a balance is owed, otherwise "clear"
 // All payments_status rows of a bill are updated together, so the newest row
 // speaks for the bill (read in id order, the last one wins).
@@ -380,13 +491,14 @@ const getPaymentDetails = async (branchId, bills) => {
     statusRows.map((row) => [String(row.subs_billno), row]),
   );
 
-  // First record of each bill only.
+  // A bill can have several records (one per payment): add them up.
   const balanceByBill = new Map();
 
   balanceRows.forEach((row) => {
     const key = String(row.bill_no);
+    const paid = Number(balanceByBill.get(key)?.paid_amount ?? 0);
 
-    if (!balanceByBill.has(key)) balanceByBill.set(key, row);
+    balanceByBill.set(key, { paid_amount: paid + Number(row.paid_amount) });
   });
 
   bills.forEach((bill) => {
@@ -550,17 +662,26 @@ const findSubscriptionList = async (
 
 // Bills of the branch that still owe money, oldest bill first.
 // A bill is due when ALL of these hold:
-//   - its subs_balance record (not soft-deleted) has a paid_amount below the
-//     bill total (the sum of its items),
-//   - the balance was not written off (subs_balance.written_off is false),
+//   - its subs_balance records (not soft-deleted) add up to less than the bill
+//     total (the sum of its items),
+//   - the balance was not written off (no subs_balance record is written off),
 //   - the bill's newest payments_status row is not "cancelled". (A part paid
 //     bill is saved as "completed" with a subs_balance record, so the status
 //     cannot be used to find due bills; it is only used to drop cancelled ones.)
 // Paging, filtering and the totals all run in SQL, so total / totals cover
 // every matching bill (all pages), not just the page returned.
 const findDueBillList = async (branchId, { search, page, limit }) => {
+  // One row per bill with everything paid so far. A bill can have several
+  // subs_balance records (one per payment), so they are added up; a bill with
+  // a written off record is left out.
+  const balances = db("subs_balance")
+    .whereNull("deleted_at")
+    .groupBy("branch_id", "bill_no")
+    .havingRaw("COALESCE(MAX(written_off), 0) = 0")
+    .select("branch_id", "bill_no", db.raw("SUM(paid_amount) AS paid_amount"));
+
   const base = db("subs_summ as s")
-    .join("subs_balance as b", function joinBalance() {
+    .join(balances.as("b"), function joinBalance() {
       this.on("b.bill_no", "=", "s.bill_no").andOn(
         "b.branch_id",
         "=",
@@ -576,8 +697,7 @@ const findDueBillList = async (branchId, { search, page, limit }) => {
     })
     .where("s.branch_id", branchId)
     .whereNull("s.deleted_at")
-    .whereNull("b.deleted_at")
-    .where("b.written_off", false)
+
     .whereNotExists(function newestStatusIsCancelled() {
       this.select(db.raw("1"))
         .from("payments_status as ps")
@@ -751,11 +871,7 @@ const findBillDetails = async (branchId, billNo) => {
 
   const [transactions, balanceRow] = await Promise.all([
     findBillTransactions(branchId, billNo),
-    db("subs_balance")
-      .where({ branch_id: branchId, bill_no: billNo })
-      .whereNull("deleted_at")
-      .orderBy("id")
-      .first("paid_amount", "written_off"),
+    findBalance(branchId, billNo),
   ]);
 
   const receivedTotal = transactions.reduce(
@@ -789,4 +905,5 @@ module.exports = {
   findSubscriptionList,
   findDueBillList,
   findBillDetails,
+  payDue,
 };

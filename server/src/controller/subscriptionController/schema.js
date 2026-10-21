@@ -71,6 +71,18 @@ const completePaymentSchema = z.object({
     .min(1, "Paid price must be greater than 0"),
 });
 
+// What the client sends to pay the due amount of a bill, fully or in part.
+// paid_amount is in minor units (paise), like every other amount. The branch
+// and the user come from the verified token, never from the body.
+const payDueSchema = z.object({
+  payment_id: id("Payment"),
+  bill_no: id("Bill no"),
+  paid_amount: z
+    .number({ message: "Paid amount must be a number" })
+    .int("Paid amount must be a whole number of minor units")
+    .min(1, "Paid amount must be greater than 0"),
+});
+
 // What the client sends to list the bills of a date range (bill date, both
 // ends included). Page, limit and search travel in the query string.
 const listSubscriptionsSchema = z
@@ -92,6 +104,7 @@ const formatZodError = (error) =>
 module.exports = {
   addItemSchema,
   completePaymentSchema,
+  payDueSchema,
   listSubscriptionsSchema,
   formatZodError,
 };
