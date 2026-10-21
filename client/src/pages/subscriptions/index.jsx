@@ -1,9 +1,12 @@
 import { useState } from "react";
 
 import Title from "@/components/additonal/Title";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatMoney } from "@/utils/currency";
 import { notifyError, notifySuccess } from "@/utils/notification";
 
+import DueSubscription from "./DueSubscription";
+import RenewSubscription from "./RenewSubscription";
 import SubscriptionFooter from "./SubscriptionFooter";
 import SubscriptionForm from "./SubscriptionForm";
 import SubscriptionItems from "./SubscriptionItems";
@@ -52,20 +55,42 @@ function Subscriptions() {
         description="Manage membership plans and member subscriptions."
       />
 
-      <SubscriptionForm hasItems={bill.items.length > 0} onAddItem={addItem} />
+      <Tabs defaultValue="new">
+        <TabsList>
+          <TabsTrigger value="new">New</TabsTrigger>
+          <TabsTrigger value="renew">Renew</TabsTrigger>
+          <TabsTrigger value="due">Due</TabsTrigger>
+        </TabsList>
 
-      <SubscriptionItems items={bill.items} isLoading={isLoading} />
+        {/* keepMounted: switching tabs must not wipe a half-filled bill form. */}
+        <TabsContent value="new" keepMounted className="space-y-6 text-base">
+          <SubscriptionForm
+            hasItems={bill.items.length > 0}
+            onAddItem={addItem}
+          />
 
-      <SubscriptionFooter
-        itemCount={bill.totals.item_count}
-        grandTotalMinor={bill.totals.grand_total_minor}
-        paymentMethods={paymentMethods}
-        paymentMethodId={paymentMethodId}
-        onPaymentMethodChange={setPaymentMethodId}
-        isPaymentMethodsLoading={isPaymentMethodsLoading}
-        onPay={handlePay}
-        isPaying={isPaying}
-      />
+          <SubscriptionItems items={bill.items} isLoading={isLoading} />
+
+          <SubscriptionFooter
+            itemCount={bill.totals.item_count}
+            grandTotalMinor={bill.totals.grand_total_minor}
+            paymentMethods={paymentMethods}
+            paymentMethodId={paymentMethodId}
+            onPaymentMethodChange={setPaymentMethodId}
+            isPaymentMethodsLoading={isPaymentMethodsLoading}
+            onPay={handlePay}
+            isPaying={isPaying}
+          />
+        </TabsContent>
+
+        <TabsContent value="renew">
+          <RenewSubscription />
+        </TabsContent>
+
+        <TabsContent value="due">
+          <DueSubscription />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

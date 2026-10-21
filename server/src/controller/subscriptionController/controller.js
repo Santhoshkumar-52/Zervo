@@ -86,7 +86,11 @@ const getBillItems = async (req, res) => {
 // Without bill_no a new bill number is generated; with it the item is added to
 // that bill. The server looks the plan and tax up, works out the discount, tax,
 // total and end date itself, saves the item and returns the whole bill:
-// { bill_no, items, totals }.
+// { bill_no, items, totals }. Every saved item also gets its own generated
+// subscription_no (SUB-<year>-<number>, e.g. SUB-2026-0001), which comes back
+// on each item and wherever the bill is read (summary, details, lists). The
+// server also saves bill_type "new" on every item made here; it comes back
+// the same way and is never read from the request.
 const addBillItem = async (req, res) => {
   try {
     const parsed = addItemSchema.safeParse(req.body);

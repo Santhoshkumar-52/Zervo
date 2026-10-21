@@ -1,5 +1,9 @@
 const db = require("../../config/knexfile");
 
+// subs_summ.bill_type: a bill made from the New tab is "new"; "renew" is for
+// the Renew flow. The server sets it, the client never sends it.
+const BILL_TYPE = { NEW: "new", RENEW: "renew" };
+
 // A new bill number is the current time in seconds (fits the unsigned INT
 // column). Every item added to the same bill reuses that number.
 const generateBillNo = () => Math.floor(Date.now() / 1000);
@@ -15,6 +19,8 @@ const getItems = (branchId, billNo, conn = db) =>
     .select(
       "i.id",
       "s.bill_no",
+      "s.bill_type",
+      "s.subscription_no",
       db.raw("DATE_FORMAT(s.bill_date, '%Y-%m-%d') as bill_date"),
       "s.member_id",
       "i.plan_id",
@@ -31,6 +37,30 @@ const getItems = (branchId, billNo, conn = db) =>
 
 const sumTotals = (items) =>
   items.reduce((sum, item) => sum + Number(item.total_minor), 0);
+
+// subscription_no of one item (one subs_summ row): SUB-<year>-<running number
+// of the branch for that year>, e.g. SUB-2026-0187. Every item gets its own.
+// The branch row is locked first, so two items saved at the same time cannot
+// read the same last number. Soft-deleted rows count too, because the unique
+// index on (branch_id, subscription_no) still covers them.
+const generateSubscriptionNo = async (trx, branchId) => {
+  await trx("branches").where({ id: branchId }).forUpdate().first("id");
+
+  const prefix = `SUB-${new Date().getFullYear()}-`;
+
+  const row = await trx("subs_summ")
+    .where("branch_id", branchId)
+    .whereRaw("LEFT(subscription_no, ?) = ?", [prefix.length, prefix])
+    .select(
+      db.raw(
+        "COALESCE(MAX(CAST(SUBSTRING(subscription_no, ?) AS UNSIGNED)), 0) AS last_no",
+        [prefix.length + 1],
+      ),
+    )
+    .first();
+
+  return `${prefix}${String(Number(row.last_no) + 1).padStart(4, "0")}`;
+};
 
 // Saves one item as a subs_summ + subs_items row plus a draft payments_status
 // row, all under the same bill number. The bill's total is then refreshed on
@@ -57,6 +87,8 @@ const addItem = (branchId, userId, billNo, item) =>
       bill_date: item.bill_date,
       branch_id: branchId,
       member_id: item.member_id,
+      bill_type: BILL_TYPE.NEW,
+      subscription_no: await generateSubscriptionNo(trx, branchId),
       ...pricing,
     });
 
@@ -287,6 +319,7 @@ const findSummaryBill = async (branchId, billNo) => {
       .orderBy("s.id")
       .select(
         "s.member_id",
+        "s.bill_type",
         "s.subscription_no",
         formatDay("s.bill_date").as("bill_date"),
         formatDay("s.start_date").as("start_date"),
@@ -309,6 +342,7 @@ const findSummaryBill = async (branchId, billNo) => {
       .orderBy("i.id")
       .select(
         "i.id",
+        "s.subscription_no",
         "i.item_type",
         "i.item_name",
         "i.item_description",
@@ -374,6 +408,10 @@ const findSummaryBill = async (branchId, billNo) => {
     ...new Set(summRows.map((row) => Number(row.discount_rate || 0))),
   ];
   const taxRates = [...new Set(summRows.map((row) => Number(row.tax_percent)))];
+  // One number per item: a bill with several items lists all of them.
+  const subscriptionNos = [
+    ...new Set(summRows.map((row) => row.subscription_no).filter(Boolean)),
+  ];
 
   const discounted = sumOf(summRows, "discounted_price");
   const taxAmount = sumOf(summRows, "tax_amount");
@@ -381,7 +419,9 @@ const findSummaryBill = async (branchId, billNo) => {
   const summary = {
     bill_no: billNo,
     bill_date: first.bill_date,
-    subscription_no: first.subscription_no,
+    // Every item of a bill is created by the same flow, so the first speaks for it.
+    bill_type: first.bill_type,
+    subscription_no: subscriptionNos.length ? subscriptionNos.join(", ") : null,
     // The bill covers the earliest start to the latest end of its items.
     start_date: summRows.map((row) => row.start_date).sort()[0],
     end_date: summRows
@@ -605,6 +645,10 @@ const findSubscriptionList = async (
       "m.member_Id as member_code",
       "m.phone",
       "m.avatar_url",
+      db.raw(
+        "GROUP_CONCAT(DISTINCT s.subscription_no ORDER BY s.subscription_no SEPARATOR ', ') as subscription_no",
+      ),
+      db.raw("MAX(s.bill_type) as bill_type"),
       db.raw("COUNT(*) as item_count"),
       db.raw("SUM(s.total_price) as total_minor"),
     )
@@ -645,6 +689,8 @@ const findSubscriptionList = async (
   const bills = rows.map((row) => ({
     bill_no: row.bill_no,
     bill_date: row.bill_date,
+    bill_type: row.bill_type ?? null,
+    subscription_no: row.subscription_no ?? null,
     member: {
       id: row.member_id,
       member_id: row.member_code ?? null,
@@ -745,6 +791,10 @@ const findDueBillList = async (branchId, { search, page, limit }) => {
       "m.phone",
       "m.avatar_url",
       "b.paid_amount as paid_minor",
+      db.raw("MAX(s.bill_type) as bill_type"),
+      db.raw(
+        "GROUP_CONCAT(DISTINCT s.subscription_no ORDER BY s.subscription_no SEPARATOR ', ') as subscription_no",
+      ),
       db.raw("COUNT(*) as item_count"),
       db.raw("SUM(s.total_price) as total_minor"),
     );
@@ -783,6 +833,8 @@ const findDueBillList = async (branchId, { search, page, limit }) => {
     return {
       bill_no: row.bill_no,
       bill_date: row.bill_date,
+      bill_type: row.bill_type ?? null,
+      subscription_no: row.subscription_no ?? null,
       member: {
         id: row.member_id,
         member_id: row.member_code ?? null,
