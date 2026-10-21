@@ -101,8 +101,75 @@ const findSalesSeries = async (branchId, salesRows) => {
   return series;
 };
 
+// Payment modes for the range: one { id, name, count, amount } record for
+// every payment mode of the branch (a mode nobody used shows 0 and 0).
+//   count  = number of bills paid with that mode
+//   amount = money received with that mode in paise: paid_price minus the
+//            change given back (never below 0)
+// Counts the same bills as the rest of the dashboard: bill date inside the
+// range (both days included), status completed or pending, a payment mode set.
+// All payments_status rows of a bill are updated together, so only the newest
+// row of each bill is read (same as the bill list), which keeps a bill with
+// several items from being counted once per item.
+// A deleted mode is listed only when it was used in the range. Oldest mode
+// first, so every mode keeps its place whichever range is picked.
+const findPaymentModes = async (branchId, { startDate, endDate }) => {
+  const usedRows = await db("payments_status as ps")
+    .join("payments as p", "p.id", "ps.payment_id")
+    .where("ps.branch_id", branchId)
+    .whereIn("ps.id", function newestRowOfEachBill() {
+      this.select(db.raw("MAX(id)"))
+        .from("payments_status")
+        .where("branch_id", branchId)
+        .groupBy("subs_billno");
+    })
+    .whereIn("ps.payments_status", ["completed", "pending"])
+    .whereExists(function billInRange() {
+      this.select(db.raw("1"))
+        .from("subs_summ as s")
+        .whereRaw("s.bill_no = CAST(ps.subs_billno AS UNSIGNED)")
+        .whereRaw("s.branch_id = ps.branch_id")
+        .whereNull("s.deleted_at")
+        .where("s.bill_date", ">=", startDate)
+        .where("s.bill_date", "<=", endDate);
+    })
+    .groupBy("p.id")
+    .select(
+      "p.id",
+      db.raw("COUNT(*) AS bill_count"),
+      // paid_price and change are unsigned, so they are cast before the
+      // subtraction (an unsigned result below 0 would be an error).
+      db.raw(
+        "SUM(GREATEST(CAST(ps.paid_price AS SIGNED) - CAST(ps.?? AS SIGNED), 0)) AS amount",
+        ["change"],
+      ),
+    );
+
+  const usedById = new Map(usedRows.map((row) => [row.id, row]));
+
+  const modes = await db("payments")
+    .where("branch_id", branchId)
+    .where(function activeOrUsed() {
+      this.whereNull("deleted_at").orWhereIn("id", [...usedById.keys()]);
+    })
+    .select("id", "payment_name")
+    .orderBy("id", "asc");
+
+  return modes.map((mode) => {
+    const used = usedById.get(mode.id);
+
+    return {
+      id: mode.id,
+      name: mode.payment_name,
+      count: Number(used?.bill_count ?? 0),
+      amount: Number(used?.amount ?? 0),
+    };
+  });
+};
+
 module.exports = {
   findSubscriptionTrend,
   findSalesTrend,
   findSalesSeries,
+  findPaymentModes,
 };

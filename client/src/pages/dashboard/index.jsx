@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, LineChart, PieChart } from "lucide-react";
+import {
+  BarChart3,
+  LineChart,
+  PieChart as PieChartIcon,
+} from "lucide-react";
 
 import { getDashboard } from "@/api/dashboard/dashboardApi";
 import { AreaChart } from "@/components/additonal/AreaChart";
@@ -10,6 +14,7 @@ import DateRangeFilter, {
   getDateRangeValue,
   DATE_RANGE_PRESETS,
 } from "@/components/additonal/DateRangeFilter";
+import { PieChart } from "@/components/additonal/PieChart";
 import Title from "@/components/additonal/Title";
 import { useAuthStore } from "@/store/auth";
 import { formatMoney, formatMoneyCompact } from "@/utils/currency";
@@ -32,7 +37,7 @@ const CHARTS = [
     span: "md:col-span-2 xl:col-span-2",
     title: "Memberships",
     description: "New and renewed memberships",
-    icon: PieChart,
+    icon: PieChartIcon,
   },
   {
     key: "revenue",
@@ -44,9 +49,9 @@ const CHARTS = [
   {
     key: "paymentmode",
     span: "md:col-span-2 xl:col-span-1",
-    title: "Revenue",
-    description: "Collections over the period",
-    icon: LineChart,
+    title: "Payment Modes",
+    description: "Analyze of payment mode",
+    icon: PieChartIcon,
   },
   {
     key: "attendance",
@@ -104,6 +109,30 @@ function TrendChart({
   );
 }
 
+// Donut chart of the payment modes: [{ id, name, count, amount }] from the
+// dashboard API. Each slice is the money received with that mode (paise); the
+// legend and tooltip also show how many bills the mode paid.
+function PaymentModeChart({ modes, isLoading, isError }) {
+  if (isLoading) return <ChartMessage>Loading...</ChartMessage>;
+
+  if (isError) return <ChartMessage>Could not load the data.</ChartMessage>;
+
+  const data = (modes ?? []).map((mode) => ({
+    label: `${mode.name} · ${mode.count} ${mode.count === 1 ? "bill" : "bills"}`,
+    value: mode.amount,
+  }));
+
+  return (
+    <PieChart
+      donut
+      data={data}
+      formatValue={formatMoney}
+      totalLabel="Received"
+      emptyMessage="No payments for the selected dates."
+    />
+  );
+}
+
 function ChartCard({ title, description, icon: Icon, range, children }) {
   return (
     <Card className="flex h-full min-h-0 flex-col">
@@ -143,7 +172,7 @@ function Dashboard() {
   const [branchId, setBranchId] = useState(userBranchId ?? null);
 
   // GET /api/dashboard - refetches whenever the date range changes.
-  // Resolves with { subscriptions: { group_by, points } }.
+  // Resolves with { subscriptions, revenue, payment_modes }.
   const { data, isLoading, isError } = useQuery({
     queryKey: ["dashboard", range.startDate, range.endDate],
     queryFn: () =>
@@ -171,6 +200,13 @@ function Dashboard() {
         valueLabel="Revenue"
         formatValue={formatMoney}
         formatAxisValue={formatMoneyCompact}
+      />
+    ),
+    paymentmode: (
+      <PaymentModeChart
+        modes={data?.payment_modes}
+        isLoading={isLoading}
+        isError={isError}
       />
     ),
   };

@@ -7,6 +7,7 @@ const {
   findSubscriptionTrend,
   findSalesTrend,
   findSalesSeries,
+  findPaymentModes,
 } = require("./dashboardStore");
 const { buildTrend } = require("./trend");
 
@@ -35,12 +36,20 @@ const trendLoader = (findDailyRows, findSeries) => async (params) => {
   return { ...trend, series: await findSeries(params.branchId, rows) };
 };
 
+// Payment modes in the range: how many bills each mode paid and the money it
+// received (paise). Not a trend, so it skips the day/week/month grouping.
+// -> [{ id, name, count, amount }]   (every mode of the branch, 0 when unused)
+const paymentModeLoader = (params) =>
+  findPaymentModes(params.branchId, params);
+
 // key -> loader. The key becomes the property name in the response.
 const loaders = {
   // Bills per period
   subscriptions: trendLoader(findSubscriptionTrend),
   // Sales per period, split by plan (paise, tax included)
   revenue: trendLoader(findSalesTrend, findSalesSeries),
+  // Bill count and amount received per payment mode, for the whole range
+  payment_modes: paymentModeLoader,
   // attendance: trendLoader(findAttendanceTrend),   <- add more charts here
 };
 
@@ -51,7 +60,8 @@ const loaders = {
 // resolves when ALL of them succeed; if any one rejects, the whole request
 // fails (nothing partial is sent).
 // -> { subscriptions: { group_by, points },
-//      revenue: { group_by, points, series } }   (see trendLoader)
+//      revenue: { group_by, points, series },   (see trendLoader)
+//      payment_modes: [{ id, name, count, amount }] }
 const getDashboard = async (req, res) => {
   try {
     const parsed = reportRangeSchema.safeParse({
