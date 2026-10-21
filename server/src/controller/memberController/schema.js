@@ -28,12 +28,17 @@ const joinedOn = z
 
 const trainerId = z.number().int().positive().nullable();
 
+// Optional: null clears it. Same values as the members.gender column.
+const GENDERS = ["male", "female", "others"];
+const gender = z.enum(GENDERS).nullable();
+
 // member_Id and branch_id are set by the server, never by the client.
 const createMemberSchema = z.object({
   first_name: firstName,
   last_name: lastName.default(""),
   phone,
   email: email.optional(),
+  gender: gender.optional(),
   joined_on: joinedOn,
   assigned_trainer_id: trainerId.optional(),
   is_active: z.boolean().default(true),
@@ -46,6 +51,7 @@ const updateMemberSchema = z
     last_name: lastName,
     phone,
     email,
+    gender,
     joined_on: joinedOn,
     assigned_trainer_id: trainerId,
     is_active: z.boolean(),

@@ -17,6 +17,7 @@ const STAFF_COLUMNS = [
   "users.branch_id",
   "users.full_name",
   "users.email",
+  "users.gender",
   "users.group_id",
   "users.avatar_url",
   "users.is_active",
@@ -185,7 +186,8 @@ const createStaff = async (req, res) => {
       full_name: data.full_name,
       email: data.email,
       password: await hashPassword(data.password),
-      role: data.role,
+      group_id: data.group_id,
+      gender: data.gender ?? null,
       is_active: data.is_active,
       avatar_url: data.avatar_url ?? null,
       created_by: req.user.userId, // the logged-in user who created this staff

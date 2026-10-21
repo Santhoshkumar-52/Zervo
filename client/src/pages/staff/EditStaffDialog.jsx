@@ -1,8 +1,10 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
+import { getGroups } from "@/api/group/groupApi";
 import Field from "@/components/additonal/Field";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -23,15 +25,32 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { useAuthStore } from "@/store/auth";
 
+// Built-in groups, shown until the real list loads. `value` is the group id
+// (same ids as the groups seed); `name` is only used to hide owner / manager.
 const ROLE_ITEMS = [
-  { value: "owner", label: "Owner" },
-  { value: "manager", label: "Manager" },
-  { value: "front_desk", label: "Front Desk" },
-  { value: "trainer", label: "Trainer" },
+  { value: 1, name: "owner", label: "Owner" },
+  { value: 2, name: "manager", label: "Manager" },
+  { value: 3, name: "front_desk", label: "Front Desk" },
+  { value: 4, name: "trainer", label: "Trainer" },
 ];
 
-const DEFAULT_ROLE = "front_desk";
+const DEFAULT_GROUP_ID = 3; // front_desk
+
+// Only a logged-in owner (group 1) can see and pick these roles.
+const OWNER_GROUP_ID = 1;
+const OWNER_ONLY_ROLES = ["owner", "manager"];
+
+// How long fetched groups are reused before the next open fetches again.
+const GROUPS_STALE_MS = 60 * 1000;
+
+// "front_desk" -> "Front Desk". Names that already have capitals or spaces
+// are only tidied up, so "Senior Trainer" stays as it is.
+const formatGroupLabel = (name = "") =>
+  name
+    .replace(/_/g, " ")
+    .replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
 
 const GENDER_OPTIONS = [
   { value: "male", label: "Male" },
@@ -47,7 +66,11 @@ const baseFields = {
     .min(1, "Email is required")
     .max(150)
     .pipe(z.email("Enter a valid email")),
-  role: z.string().min(1, "Role is required"),
+  // The chosen group (role), by id.
+  group_id: z
+    .number({ message: "Role is required" })
+    .int()
+    .positive("Role is required"),
   // Optional: null until one is chosen.
   gender: z.enum(["male", "female", "others"]).nullable(),
   is_active: z.boolean(),
@@ -89,7 +112,7 @@ const toFormValues = (staff) => ({
   full_name: staff?.full_name ?? "",
   email: staff?.email ?? "",
   password: "",
-  role: staff?.role ?? DEFAULT_ROLE,
+  group_id: staff?.group_id ?? DEFAULT_GROUP_ID,
   gender: staff?.gender ?? null,
   is_active: staff ? Boolean(staff.is_active) : true,
 });
@@ -107,8 +130,8 @@ const toFormValues = (staff) => ({
  *   />
  *
  * `onSubmit` gets the API-ready values:
- *   create: { user_id, full_name, email, password, role, gender | null, is_active }
- *   edit:   { full_name, email, role, gender | null, is_active, password? }
+ *   create: { user_id, full_name, email, password, group_id, gender | null, is_active }
+ *   edit:   { full_name, email, group_id, gender | null, is_active, password? }
  * If it returns a promise the dialog closes when it resolves and stays open
  * when it rejects.
  */
@@ -123,6 +146,8 @@ function EditStaffDialog({
 }) {
   const isCreate = mode === "create";
 
+  const isOwner = useAuthStore((state) => state.user?.groupId) === OWNER_GROUP_ID;
+
   const {
     register,
     control,
@@ -134,25 +159,74 @@ function EditStaffDialog({
     defaultValues: toFormValues(staff),
   });
 
+  // The groups (roles) are fetched when the role dropdown is clicked open,
+  // once per time the dialog opens; the cache keeps them for a minute.
+  const [groupsRequested, setGroupsRequested] = useState(false);
+
+  // A freshly opened dialog fetches again on the next click of the dropdown.
+  // (State is adjusted while rendering, which React prefers over an effect.)
+  const [wasOpen, setWasOpen] = useState(open);
+
+  if (open !== wasOpen) {
+    setWasOpen(open);
+
+    if (open) setGroupsRequested(false);
+  }
+
   // Load the selected staff member into the form each time the dialog opens.
   useEffect(() => {
     if (open) reset(toFormValues(staff));
   }, [open, staff, reset]);
 
-  // Keep the current role selectable even if it is not in the list.
+  const {
+    data: groups,
+    isFetching: isGroupsFetching,
+    isError: isGroupsError,
+  } = useQuery({
+    queryKey: ["groups", "options"],
+    queryFn: () =>
+      getGroups({ groupActive: true, limit: 100 }).then(
+        (response) => response.data.data.groups,
+      ),
+    enabled: open && groupsRequested,
+    staleTime: GROUPS_STALE_MS,
+  });
+
+  // Fetched groups when we have them, else the built-in roles. The current
+  // role stays selectable even if it is not in the list.
   const roleItems = useMemo(() => {
-    if (!staff?.role || ROLE_ITEMS.some((item) => item.value === staff.role)) {
-      return ROLE_ITEMS;
+    const allItems = groups
+      ? groups.map((group) => ({
+          value: group.id,
+          name: group.name,
+          label: formatGroupLabel(group.name),
+        }))
+      : ROLE_ITEMS;
+
+    // Owner and manager can only be given by an owner (group 1).
+    const items = isOwner
+      ? allItems
+      : allItems.filter((item) => !OWNER_ONLY_ROLES.includes(item.name));
+
+    if (!staff?.group_id || items.some((item) => item.value === staff.group_id)) {
+      return items;
     }
 
-    return [...ROLE_ITEMS, { value: staff.role, label: staff.role }];
-  }, [staff]);
+    return [
+      ...items,
+      {
+        value: staff.group_id,
+        name: staff.group_name,
+        label: formatGroupLabel(staff.group_name ?? `Group #${staff.group_id}`),
+      },
+    ];
+  }, [groups, staff, isOwner]);
 
   const submit = async (values) => {
     const payload = {
       full_name: values.full_name,
       email: values.email,
-      role: values.role,
+      group_id: values.group_id,
       gender: values.gender ?? null,
       is_active: values.is_active,
     };
@@ -263,26 +337,41 @@ function EditStaffDialog({
               label="Role"
               htmlFor="edit-staff-role"
               required
-              error={errors.role?.message}
+              error={errors.group_id?.message}
             >
               <Controller
-                name="role"
+                name="group_id"
                 control={control}
                 render={({ field }) => (
                   <Select
                     items={roleItems}
                     value={field.value}
                     onValueChange={field.onChange}
+                    onOpenChange={(isOpen) => {
+                      if (isOpen) setGroupsRequested(true);
+                    }}
                   >
                     <SelectTrigger id="edit-staff-role" className="w-full">
                       <SelectValue placeholder="Select a role" />
                     </SelectTrigger>
                     <SelectContent>
-                      {roleItems.map((item) => (
-                        <SelectItem key={item.value} value={item.value}>
-                          {item.label}
+                      {isGroupsFetching && !groups ? (
+                        <SelectItem value="__loading" disabled>
+                          Loading groups...
                         </SelectItem>
-                      ))}
+                      ) : (
+                        roleItems.map((item) => (
+                          <SelectItem key={item.value} value={item.value}>
+                            {item.label}
+                          </SelectItem>
+                        ))
+                      )}
+
+                      {isGroupsError && !groups && (
+                        <SelectItem value="__error" disabled>
+                          Could not load groups
+                        </SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 )}
