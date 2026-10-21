@@ -1,6 +1,6 @@
 // Placeholder avatars (initials), same style as the users seed.
 const avatarUrl = (name) =>
-  `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(name)}`;
+  `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(name)}`;
 
 // 20 sample members spread over both branches with a mix of states:
 //   branch:  MAIN (11) / ANNA-NAGAR (9)

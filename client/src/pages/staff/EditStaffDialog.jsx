@@ -58,6 +58,21 @@ const GENDER_OPTIONS = [
   { value: "others", label: "Others" },
 ];
 
+// Mobile number: digits with an optional leading +, spaces, dashes and
+// brackets, 7 to 15 digits in total. Same rule as the server.
+const phoneField = z
+  .string()
+  .trim()
+  .min(1, "Mobile number is required")
+  .regex(/^\+?[0-9\-\s()]{7,20}$/, "Enter a valid mobile number")
+  .refine(
+    (value) => {
+      const digits = value.replace(/\D/g, "").length;
+      return digits >= 7 && digits <= 15;
+    },
+    { message: "Mobile number must have 7 to 15 digits" },
+  );
+
 const baseFields = {
   full_name: z.string().trim().min(1, "Full name is required").max(100),
   email: z
@@ -66,6 +81,7 @@ const baseFields = {
     .min(1, "Email is required")
     .max(150)
     .pipe(z.email("Enter a valid email")),
+  phone: phoneField,
   // The chosen group (role), by id.
   group_id: z
     .number({ message: "Role is required" })
@@ -111,6 +127,7 @@ const toFormValues = (staff) => ({
   user_id: staff?.user_id ?? "",
   full_name: staff?.full_name ?? "",
   email: staff?.email ?? "",
+  phone: staff?.phone ?? "",
   password: "",
   group_id: staff?.group_id ?? DEFAULT_GROUP_ID,
   gender: staff?.gender ?? null,
@@ -130,8 +147,8 @@ const toFormValues = (staff) => ({
  *   />
  *
  * `onSubmit` gets the API-ready values:
- *   create: { user_id, full_name, email, password, group_id, gender | null, is_active }
- *   edit:   { full_name, email, group_id, gender | null, is_active, password? }
+ *   create: { user_id, full_name, email, phone, password, group_id, gender | null, is_active }
+ *   edit:   { full_name, email, phone, group_id, gender | null, is_active, password? }
  * If it returns a promise the dialog closes when it resolves and stays open
  * when it rejects.
  */
@@ -226,6 +243,7 @@ function EditStaffDialog({
     const payload = {
       full_name: values.full_name,
       email: values.email,
+      phone: values.phone,
       group_id: values.group_id,
       gender: values.gender ?? null,
       is_active: values.is_active,
@@ -330,6 +348,25 @@ function EditStaffDialog({
                 aria-required="true"
                 aria-invalid={Boolean(errors.email)}
                 {...register("email")}
+              />
+            </Field>
+
+            <Field
+              label="Mobile"
+              htmlFor="edit-staff-phone"
+              required
+              error={errors.phone?.message}
+            >
+              <Input
+                id="edit-staff-phone"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                maxLength={20}
+                placeholder="e.g. 98765 43210"
+                aria-required="true"
+                aria-invalid={Boolean(errors.phone)}
+                {...register("phone")}
               />
             </Field>
 

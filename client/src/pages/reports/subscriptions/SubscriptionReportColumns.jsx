@@ -2,10 +2,20 @@ import { Eye } from "lucide-react";
 
 import PaymentStatusBadge from "@/components/additonal/SummaryBill/PaymentStatusBadge";
 import { formatDate } from "@/components/additonal/SummaryBill/billHelpers";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/utils/currency";
 
 const EMPTY = "\u2014";
+
+// "Ravi Kumar" -> "RK"
+const getInitials = (name) =>
+  (name || "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("") || "?";
 
 // Same pill shape as PaymentStatusBadge: red while a balance is owed, green
 // once it is clear. The dot and the wording mean colour is never the only
@@ -30,8 +40,12 @@ function BalanceStatusBadge({ payment = {} }) {
   );
 }
 
-// Handlers: { onView(bill) }
-export const getSubscriptionReportColumns = ({ onView } = {}) => [
+// Handlers: { onView(bill), onViewProfile(memberId) }
+// onViewProfile is called when the member name is clicked.
+export const getSubscriptionReportColumns = ({
+  onView,
+  onViewProfile,
+} = {}) => [
   {
     accessorKey: "bill_no",
     header: "Bill no",
@@ -51,14 +65,42 @@ export const getSubscriptionReportColumns = ({ onView } = {}) => [
   {
     id: "member",
     header: "Member",
-    cell: ({ row }) => (
-      <div className="flex flex-col leading-tight">
-        <span>{row.original.member.name || EMPTY}</span>
-        <span className="text-xs text-muted-foreground">
-          {row.original.member.member_id || EMPTY}
-        </span>
-      </div>
-    ),
+    cell: ({ row }) => {
+      const { member } = row.original;
+
+      return (
+        <div className="flex items-center gap-2.5">
+          <Avatar>
+            {member.avatar_url && (
+              <AvatarImage src={member.avatar_url} alt="" />
+            )}
+
+            <AvatarFallback className="text-xs">
+              {getInitials(member.name)}
+            </AvatarFallback>
+          </Avatar>
+
+          <div className="flex flex-col items-start leading-tight">
+            {member.name && onViewProfile ? (
+              <button
+                type="button"
+                onClick={() => onViewProfile(member.id)}
+                aria-label={`View profile of ${member.name}`}
+                className="cursor-pointer rounded-sm text-left font-medium hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+              >
+                {member.name}
+              </button>
+            ) : (
+              <span>{member.name || EMPTY}</span>
+            )}
+
+            <span className="text-xs text-muted-foreground">
+              {member.member_id || EMPTY}
+            </span>
+          </div>
+        </div>
+      );
+    },
   },
   {
     id: "phone",

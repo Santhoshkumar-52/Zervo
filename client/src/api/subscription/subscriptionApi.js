@@ -70,7 +70,7 @@ export const getSummaryBill = (billNo) =>
 // The server accepts the dates in the query string, since a browser cannot
 // send a body on GET. Only roles 1, 2 and 3 may call it (403 otherwise).
 // Response: { success, message, data: { bills, pagination } }
-//   bills:      [{ bill_no, bill_date, member: { id, member_id, name, phone },
+//   bills:      [{ bill_no, bill_date, member: { id, member_id, name, phone, avatar_url },
 //                  item_count, total_minor,
 //                  payment: { status, method, paid_on } }]
 //   pagination: { page, limit, total, totalPages, hasNextPage, hasPreviousPage }

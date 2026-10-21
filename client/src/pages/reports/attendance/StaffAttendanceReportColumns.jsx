@@ -1,6 +1,7 @@
 import { format } from "date-fns";
 
 import { formatDate } from "@/components/additonal/SummaryBill/billHelpers";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const EMPTY = "\u2014";
 const TIME_FORMAT = "hh:mm a";
@@ -34,6 +35,15 @@ const getCheckoutType = (systemCheckout) => {
   return systemCheckout ? "Automatic" : "Manual";
 };
 
+// "Ravi Kumar" -> "RK"
+const getInitials = (name) =>
+  (name || "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("") || "?";
+
 // "front_desk" -> "Front desk"
 const formatGroup = (name) => {
   if (!name) return EMPTY;
@@ -43,7 +53,8 @@ const formatGroup = (name) => {
   return text.charAt(0).toUpperCase() + text.slice(1);
 };
 
-export const getStaffAttendanceReportColumns = () => [
+// onViewProfile(staffId) is called when the staff name is clicked.
+export const getStaffAttendanceReportColumns = ({ onViewProfile } = {}) => [
   {
     accessorKey: "attendance_date",
     header: "Date",
@@ -52,14 +63,40 @@ export const getStaffAttendanceReportColumns = () => [
   {
     id: "staff",
     header: "Staff",
-    cell: ({ row }) => (
-      <div className="flex flex-col leading-tight">
-        <span>{row.original.staff.name || EMPTY}</span>
-        <span className="text-xs text-muted-foreground">
-          {row.original.staff.user_id || EMPTY}
-        </span>
-      </div>
-    ),
+    cell: ({ row }) => {
+      const { staff } = row.original;
+
+      return (
+        <div className="flex items-center gap-2.5">
+          <Avatar>
+            {staff.avatar_url && <AvatarImage src={staff.avatar_url} alt="" />}
+
+            <AvatarFallback className="text-xs">
+              {getInitials(staff.name)}
+            </AvatarFallback>
+          </Avatar>
+
+          <div className="flex flex-col items-start leading-tight">
+            {staff.name && onViewProfile ? (
+              <button
+                type="button"
+                onClick={() => onViewProfile(staff.id)}
+                aria-label={`View profile of ${staff.name}`}
+                className="cursor-pointer rounded-sm text-left font-medium hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+              >
+                {staff.name}
+              </button>
+            ) : (
+              <span>{staff.name || EMPTY}</span>
+            )}
+
+            <span className="text-xs text-muted-foreground">
+              {staff.user_id || EMPTY}
+            </span>
+          </div>
+        </div>
+      );
+    },
   },
   {
     id: "group",

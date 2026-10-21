@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { getSubscriptionList } from "@/api/subscription/subscriptionApi";
 import DatePicker from "@/components/additonal/DatePicker";
 import DataTable from "@/components/additonal/Datatable/DataTable";
+import ProfileViewer from "@/components/additonal/ProfileViewer";
 import { Label } from "@/components/ui/label";
 
 import { getSubscriptionReportColumns } from "./SubscriptionReportColumns";
@@ -64,6 +65,10 @@ function SubscriptionReportList() {
   const [search, setSearch] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
+
+  // Member whose profile modal is open (opened by clicking a name).
+  const [profileMemberId, setProfileMemberId] = useState(null);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   const isRangeInvalid = Boolean(startDate && endDate && startDate > endDate);
 
@@ -131,6 +136,10 @@ function SubscriptionReportList() {
     () =>
       getSubscriptionReportColumns({
         onView: (bill) => navigate(`/summary-bill?id=${bill.bill_no}`),
+        onViewProfile: (memberId) => {
+          setProfileMemberId(memberId);
+          setProfileOpen(true);
+        },
       }),
     [navigate],
   );
@@ -200,6 +209,12 @@ function SubscriptionReportList() {
           appliedSearch ? getNoMatchState(appliedSearch) : EMPTY_STATE
         }
         searchPlaceholder="Search by bill no, member ID or phone..."
+      />
+
+      <ProfileViewer
+        open={profileOpen}
+        onOpenChange={setProfileOpen}
+        memberId={profileMemberId}
       />
     </div>
   );

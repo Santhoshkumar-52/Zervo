@@ -17,6 +17,7 @@ const STAFF_COLUMNS = [
   "users.branch_id",
   "users.full_name",
   "users.email",
+  "users.phone",
   "users.gender",
   "users.group_id",
   "users.avatar_url",
@@ -59,11 +60,16 @@ const duplicateResponse = (res, error) => {
     return errorResponse(res, "User ID is already in use", 409);
   }
 
+  if (message.includes("phone")) {
+    return errorResponse(res, "Mobile number is already in use", 409);
+  }
+
   return errorResponse(res, "Duplicate value", 409);
 };
 
 // GET /api/staff?page&limit&search&role&isActive
-// `search` matches full name, email, user ID or group name (owner, manager ...).
+// `search` matches full name, email, mobile number, user ID or group name
+// (owner, manager ...).
 const getStaffList = async (req, res) => {
   try {
     const { branchId } = req.user;
@@ -94,6 +100,7 @@ const getStaffList = async (req, res) => {
           .where("users.full_name", "like", `%${search}%`)
           .orWhere("users.email", "like", `%${search}%`)
           .orWhere("users.user_id", "like", `%${search}%`)
+          .orWhere("users.phone", "like", `%${search}%`)
           .orWhere("groups.name", "like", `%${search}%`);
       });
     }
@@ -187,6 +194,7 @@ const createStaff = async (req, res) => {
       branch_id: req.user.branchId,
       full_name: data.full_name,
       email: data.email,
+      phone: data.phone,
       password: await hashPassword(data.password),
       group_id: data.group_id,
       gender: data.gender ?? null,

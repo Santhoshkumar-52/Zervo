@@ -3,6 +3,7 @@ import { Users, SearchX } from "lucide-react";
 
 import AppAlertDialog from "@/components/additonal/AlertDialog";
 import DataTable from "@/components/additonal/Datatable/DataTable";
+import ProfileViewer from "@/components/additonal/ProfileViewer";
 import { useMemberStore } from "@/store/member";
 
 import EditMemberDialog from "./EditMemberDialog";
@@ -35,6 +36,7 @@ const getRowId = (row) => String(row.id);
  *   edit    fetchMemberById, updateMember -> row replaced
  *   status  toggleStatus      -> row replaced
  *   delete  deleteMember      -> row removed
+ *   profile ProfileViewer     (opened from the name; fetches by id itself)
  */
 function MembersList() {
   // ---- Rendered from the store ---------------------------------------
@@ -71,6 +73,10 @@ function MembersList() {
   // Kept while the dialog animates closed so its text does not flicker.
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [memberToDelete, setMemberToDelete] = useState(null);
+
+  // Member whose profile modal is open (opened by clicking a name).
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileMemberId, setProfileMemberId] = useState(null);
 
   // { member, isActive } for the status confirmation dialog.
   const [statusOpen, setStatusOpen] = useState(false);
@@ -110,6 +116,10 @@ function MembersList() {
           setStatusOpen(true);
         },
         isStatusUpdating: (member) => statusUpdatingIds.includes(member.id),
+        onViewProfile: (memberId) => {
+          setProfileMemberId(memberId);
+          setProfileOpen(true);
+        },
       }),
     [selectMember, fetchMemberById, statusUpdatingIds],
   );
@@ -147,6 +157,13 @@ function MembersList() {
         isMemberLoading={isSelectedLoading}
         isLoading={isSaving}
         onSubmit={(values, member) => updateMember(member.id, values)}
+      />
+
+      {/* Read-only profile. Loads the member + subscription by id on open. */}
+      <ProfileViewer
+        open={profileOpen}
+        onOpenChange={setProfileOpen}
+        memberId={profileMemberId}
       />
 
       <AppAlertDialog

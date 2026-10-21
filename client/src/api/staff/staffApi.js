@@ -21,11 +21,11 @@ export const getStaff = (params = {}) => {
 export const getStaffById = (id) => api.get(`/staff/${id}`);
 
 // POST /api/staff
-// body: { user_id, full_name, email, password, group_id, is_active?, avatar_url? }
+// body: { user_id, full_name, email, phone, password, group_id, is_active?, avatar_url? }
 // Response: { success, message, data: { staff } }
 export const createStaff = (payload) => api.post("/staff", payload);
 
-// PATCH /api/staff/:id   (any of: full_name, email, password, group_id, is_active, avatar_url)
+// PATCH /api/staff/:id   (any of: full_name, email, phone, password, group_id, is_active, avatar_url)
 export const updateStaff = (id, payload) => api.patch(`/staff/${id}`, payload);
 
 // PATCH /api/staff/:id/status   body: { is_active: boolean }

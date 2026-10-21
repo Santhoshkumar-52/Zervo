@@ -482,6 +482,7 @@ const findSubscriptionList = async (
       "m.last_name",
       "m.member_Id",
       "m.phone",
+      "m.avatar_url",
     )
     .select(
       "s.bill_no",
@@ -491,6 +492,7 @@ const findSubscriptionList = async (
       "m.last_name",
       "m.member_Id as member_code",
       "m.phone",
+      "m.avatar_url",
       db.raw("COUNT(*) as item_count"),
       db.raw("SUM(s.total_price) as total_minor"),
     )
@@ -536,6 +538,7 @@ const findSubscriptionList = async (
       member_id: row.member_code ?? null,
       name: [row.first_name, row.last_name].filter(Boolean).join(" ") || null,
       phone: row.phone ?? null,
+      avatar_url: row.avatar_url ?? null,
     },
     item_count: Number(row.item_count),
     total_minor: Number(row.total_minor),

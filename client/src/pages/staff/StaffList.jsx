@@ -136,7 +136,7 @@ function StaffList() {
         isLoading={isLoading}
         isFetching={isFetching}
         emptyState={appliedSearch ? getNoMatchState(appliedSearch) : EMPTY_STATE}
-        searchPlaceholder="Search by name, email or staff ID..."
+        searchPlaceholder="Search by name, email, mobile or staff ID..."
       />
 
       {/* Edit. The dialog closes only when updateStaff resolves. */}

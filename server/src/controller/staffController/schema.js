@@ -8,6 +8,21 @@ const email = z.string().trim().toLowerCase().email("Invalid email").max(150);
 const password = z.string().min(8, "Password must be at least 8 characters").max(100);
 const avatarUrl = z.string().trim().max(500).nullable();
 
+// Mobile number: digits with an optional leading +, spaces, dashes and
+// brackets (same characters as members.phone), 7 to 15 digits in total.
+const phone = z
+  .string({ message: "Mobile number is required" })
+  .trim()
+  .min(1, "Mobile number is required")
+  .regex(/^\+?[0-9\-\s()]{7,20}$/, "Enter a valid mobile number")
+  .refine(
+    (value) => {
+      const digits = value.replace(/\D/g, "").length;
+      return digits >= 7 && digits <= 15;
+    },
+    { message: "Mobile number must have 7 to 15 digits" },
+  );
+
 // Optional: null clears it. Same values as the users.gender column.
 const GENDERS = ["male", "female", "others"];
 const gender = z.enum(GENDERS).nullable();
@@ -23,6 +38,7 @@ const createStaffSchema = z.object({
   user_id: z.string().trim().min(1, "User ID is required").max(255),
   full_name: fullName,
   email,
+  phone,
   password,
   group_id: group_id,
   gender: gender.optional(),
@@ -35,6 +51,7 @@ const updateStaffSchema = z
   .object({
     full_name: fullName,
     email,
+    phone,
     password,
     group_id: group_id,
     gender,

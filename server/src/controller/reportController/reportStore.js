@@ -136,6 +136,7 @@ const findStaffAttendanceReport = async (
       "u.user_id as staff_code",
       "u.full_name",
       "u.email",
+      "u.avatar_url",
       "g.name as group_name",
     )
     .orderBy("a.checkinat", "desc")
@@ -158,6 +159,7 @@ const findStaffAttendanceReport = async (
       user_id: row.staff_code ?? null,
       name: row.full_name ?? null,
       email: row.email ?? null,
+      avatar_url: row.avatar_url ?? null,
       group_name: row.group_name ?? null,
     },
   }));

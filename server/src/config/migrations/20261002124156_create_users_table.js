@@ -25,7 +25,7 @@ exports.up = async function (knex) {
 
     table.string("full_name", 100).notNullable();
     table.enu("gender", ["male", "female", "others"]).nullable();
-
+    table.string("phone", 20).notNullable();
     table.string("email", 150).notNullable().unique();
 
     table.string("password", 255).notNullable();

@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { getMemberById } from "@/api/member/memberApi";
+import StaffProfileViewer from "@/components/additonal/StaffProfileViewer";
 import { formatDate } from "@/components/additonal/SummaryBill/billHelpers";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -107,7 +109,8 @@ function ProfileSkeleton() {
   );
 }
 
-function ProfileDetailsPanel({ member }) {
+// onViewTrainer(trainerId) is called when the trainer name is clicked.
+function ProfileDetailsPanel({ member, onViewTrainer }) {
   const name = member.member_name || EMPTY;
 
   return (
@@ -153,7 +156,18 @@ function ProfileDetailsPanel({ member }) {
         <DetailRow label="Trainer">
           {member.trainer_name ? (
             <div className="flex flex-col leading-tight">
-              <span>{member.trainer_name}</span>
+              {member.trainer_id && onViewTrainer ? (
+                <button
+                  type="button"
+                  onClick={() => onViewTrainer(member.trainer_id)}
+                  aria-label={`View profile of ${member.trainer_name}`}
+                  className="w-fit cursor-pointer rounded-sm text-left font-medium hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                >
+                  {member.trainer_name}
+                </button>
+              ) : (
+                <span>{member.trainer_name}</span>
+              )}
 
               {member.trainer_email && (
                 <span className="text-xs text-muted-foreground">
@@ -244,6 +258,8 @@ function SubscriptionDetailsPanel({ subscription }) {
  * from the `sm` breakpoint up; on phones the two panels stack vertically. The
  * middle of the modal scrolls when the content is taller than the screen.
  *
+ * Clicking the trainer name opens that trainer's StaffProfileViewer on top.
+ *
  *   <ProfileViewer
  *     open={open}
  *     onOpenChange={setOpen}
@@ -251,6 +267,10 @@ function SubscriptionDetailsPanel({ subscription }) {
  *   />
  */
 function ProfileViewer({ open, onOpenChange, memberId }) {
+  // Trainer whose profile is open on top of this modal.
+  const [trainerId, setTrainerId] = useState(null);
+  const [trainerOpen, setTrainerOpen] = useState(false);
+
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["member-profile", memberId],
     // { member, subscription } - subscription is null when there is none.
@@ -263,45 +283,59 @@ function ProfileViewer({ open, onOpenChange, memberId }) {
   });
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>Profile</DialogTitle>
-          <DialogDescription>Member and subscription details</DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Profile</DialogTitle>
+            <DialogDescription>Member and subscription details</DialogDescription>
+          </DialogHeader>
 
-        <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
-          {isLoading && <ProfileSkeleton />}
+          <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
+            {isLoading && <ProfileSkeleton />}
 
-          {isError && !data && (
-            <div className="space-y-3" role="alert">
-              <p className="text-sm text-destructive">
-                {getApiError(error, "Failed to load the profile")}
-              </p>
+            {isError && !data && (
+              <div className="space-y-3" role="alert">
+                <p className="text-sm text-destructive">
+                  {getApiError(error, "Failed to load the profile")}
+                </p>
 
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => refetch()}
-                disabled={isFetching}
-              >
-                {isFetching ? "Retrying..." : "Try again"}
-              </Button>
-            </div>
-          )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => refetch()}
+                  disabled={isFetching}
+                >
+                  {isFetching ? "Retrying..." : "Try again"}
+                </Button>
+              </div>
+            )}
 
-          {data && (
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-              <ProfileDetailsPanel member={data.member} />
+            {data && (
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                <ProfileDetailsPanel
+                  member={data.member}
+                  onViewTrainer={(id) => {
+                    setTrainerId(id);
+                    setTrainerOpen(true);
+                  }}
+                />
 
-              <SubscriptionDetailsPanel subscription={data.subscription} />
-            </div>
-          )}
-        </div>
+                <SubscriptionDetailsPanel subscription={data.subscription} />
+              </div>
+            )}
+          </div>
 
-        <DialogFooter showCloseButton />
-      </DialogContent>
-    </Dialog>
+          <DialogFooter showCloseButton />
+        </DialogContent>
+      </Dialog>
+
+      <StaffProfileViewer
+        open={trainerOpen}
+        onOpenChange={setTrainerOpen}
+        staffId={trainerId}
+      />
+    </>
   );
 }
 

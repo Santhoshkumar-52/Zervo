@@ -34,13 +34,19 @@ const getApiError = (error, fallback) =>
 let listRequestId = 0;
 let detailRequestId = 0;
 
-// Mirrors the server search: name, email or staff ID contains text.
+// Mirrors the server search: name, email, mobile, staff ID or group contains text.
 const matchesSearch = (staff, search) => {
   const query = search.trim().toLowerCase();
 
   if (!query) return true;
 
-  return [staff.full_name, staff.email, staff.user_id].some(
+  return [
+    staff.full_name,
+    staff.email,
+    staff.phone,
+    staff.user_id,
+    staff.group_name,
+  ].some(
     (value) => value && String(value).toLowerCase().includes(query),
   );
 };

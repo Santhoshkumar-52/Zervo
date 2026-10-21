@@ -1,4 +1,4 @@
-﻿import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 
 import StaffActions from "./StaffActions";
@@ -49,6 +49,11 @@ export const getStaffColumns = ({
     accessorKey: "email",
     header: "Email",
     cell: ({ row }) => row.original.email || "—",
+  },
+  {
+    accessorKey: "phone",
+    header: "Mobile",
+    cell: ({ row }) => row.original.phone || "—",
   },
   {
     accessorKey: "group_name",

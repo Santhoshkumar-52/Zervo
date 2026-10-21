@@ -6,6 +6,7 @@ import { CalendarCheck, SearchX } from "lucide-react";
 import { getStaffAttendanceReport } from "@/api/report/reportApi";
 import DatePicker from "@/components/additonal/DatePicker";
 import DataTable from "@/components/additonal/Datatable/DataTable";
+import StaffProfileViewer from "@/components/additonal/StaffProfileViewer";
 import { Label } from "@/components/ui/label";
 
 import { getStaffAttendanceReportColumns } from "./StaffAttendanceReportColumns";
@@ -60,6 +61,10 @@ function StaffAttendanceReportList() {
   const [search, setSearch] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
+
+  // Staff member whose profile modal is open (opened by clicking a name).
+  const [profileStaffId, setProfileStaffId] = useState(null);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   const isRangeInvalid = Boolean(startDate && endDate && startDate > endDate);
 
@@ -122,7 +127,16 @@ function StaffAttendanceReportList() {
     goToFirstPage();
   };
 
-  const columns = useMemo(() => getStaffAttendanceReportColumns(), []);
+  const columns = useMemo(
+    () =>
+      getStaffAttendanceReportColumns({
+        onViewProfile: (staffId) => {
+          setProfileStaffId(staffId);
+          setProfileOpen(true);
+        },
+      }),
+    [],
+  );
 
   return (
     <div className="space-y-4">
@@ -183,6 +197,12 @@ function StaffAttendanceReportList() {
           appliedSearch ? getNoMatchState(appliedSearch) : EMPTY_STATE
         }
         searchPlaceholder="Search by user ID, name, email or group..."
+      />
+
+      <StaffProfileViewer
+        open={profileOpen}
+        onOpenChange={setProfileOpen}
+        staffId={profileStaffId}
       />
     </div>
   );

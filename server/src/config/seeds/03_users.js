@@ -2,7 +2,7 @@ const { hashPassword } = require("../../utils/hashhelper");
 
 // Placeholder avatars
 const avatarUrl = (name) =>
-  `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(name)}`;
+  `https://api.dicebear.com/9.x/lorelei/svg?seed=${encodeURIComponent(name)}`;
 
 // -----------------------------------------------------------------------------
 // Demo users
@@ -122,6 +122,16 @@ const emailFor = (name) =>
     .replace(/\s+/g, ".")}@gym.com`;
 
 // -----------------------------------------------------------------------------
+// Generate a mobile number (users.phone)
+//
+// 10 digits starting with 98, different for every number 1, 2, 3 ...
+// Numbers are unique, which the users_branch_phone_unique index needs. Demo
+// users take 1-4, sample staff take 11 and up, so they never clash.
+// -----------------------------------------------------------------------------
+
+const phoneFor = (number) => String(9800000000 + number * 7919);
+
+// -----------------------------------------------------------------------------
 // Seed
 // -----------------------------------------------------------------------------
 
@@ -215,6 +225,8 @@ exports.seed = async function (knex) {
 
       email,
 
+      phone: phoneFor(demoRows.length + 1),
+
       password: await hashPassword(password),
 
       is_active: true,
@@ -252,6 +264,8 @@ exports.seed = async function (knex) {
         avatar_url: index % 5 === 3 ? null : avatarUrl(fullName),
 
         email: emailFor(fullName),
+
+        phone: phoneFor(11 + index),
 
         password: samplePassword,
 
