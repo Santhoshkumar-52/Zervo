@@ -8,6 +8,7 @@ import DataTable from "@/components/additonal/Datatable/DataTable";
 import ProfileViewer from "@/components/additonal/ProfileViewer";
 import MemberEditor from "@/pages/members/MemberEditor";
 
+import BalanceDueDialog from "./BalanceDueDialog";
 import { getBalanceReportColumns } from "./BalanceReportColumns";
 import BalanceReportTotals from "./BalanceReportTotals";
 
@@ -60,6 +61,10 @@ function BalanceReportList() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
 
+  // Bill whose balance modal is open (opened by the Pay button).
+  const [dueBillNo, setDueBillNo] = useState(null);
+  const [dueOpen, setDueOpen] = useState(false);
+
   // Apply the typed search once the user stops typing. A new search always
   // starts again from the first page.
   useEffect(() => {
@@ -105,6 +110,10 @@ function BalanceReportList() {
           setProfileMemberId(memberId);
           setProfileOpen(true);
         },
+        onPay: (bill) => {
+          setDueBillNo(bill.bill_no);
+          setDueOpen(true);
+        },
       }),
     [navigate],
   );
@@ -142,6 +151,12 @@ function BalanceReportList() {
           appliedSearch ? getNoMatchState(appliedSearch) : EMPTY_STATE
         }
         searchPlaceholder="Search by bill no, member ID or phone..."
+      />
+
+      <BalanceDueDialog
+        open={dueOpen}
+        onOpenChange={setDueOpen}
+        billNo={dueBillNo}
       />
 
       <ProfileViewer

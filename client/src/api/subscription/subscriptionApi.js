@@ -113,3 +113,17 @@ export const getDueBillList = (params = {}) => {
     .get("/subscription/due", { params: cleanParams })
     .then((res) => res.data.data);
 };
+
+// GET /api/subscription/details?bill_no=
+// One bill of the user's branch with the payments received so far. Only roles
+// 1, 2 and 3 may call it (403 otherwise); 404 when the bill is not found.
+// Response: { success, message, data: { branch, summary, member, items,
+//             payment, issued_by, transactions, balance } }
+//   (branch, summary, member, items, payment, issued_by: same as /summary)
+//   transactions: [{ id, type, payment_id, method, status, paid_minor,
+//                    change_minor, received_minor, paid_on, received_by }]
+//   balance:      { paid_minor, balance_minor, written_off, is_due }
+export const getBillDetails = (billNo) =>
+  api
+    .get("/subscription/details", { params: { bill_no: billNo } })
+    .then((res) => res.data.data);
