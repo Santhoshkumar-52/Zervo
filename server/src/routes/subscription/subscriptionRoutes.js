@@ -6,6 +6,7 @@ const {
   completeBillPayment,
   getSummaryBill,
   getSubscriptionList,
+  getDueBillList,
 } = require("../../controller/subscriptionController/controller");
 const authorizeRoles = require("../../middleware/auth/authorizeRoles");
 
@@ -31,10 +32,16 @@ const canListSubscriptions = authorizeRoles(1, 2, 3);
 //      same two fields in the query string for clients that cannot send a GET body
 //      search matches bill_no, member_Id or phone; roles 1, 2 and 3 only.
 //      -> { bills, pagination }
+// GET  /api/subscription/due?page=1&limit=10&search= -> paginated bills that are due
+//      (balance owed, not written off, not cancelled) for the user's branch,
+//      oldest bill first; search matches bill_no, member_Id or phone;
+//      roles 1, 2 and 3 only.
+//      -> { bills, totals, pagination }
 router.get("/items", getBillItems);
 router.post("/items", addBillItem);
 router.get("/summary", getSummaryBill);
 router.post("/payment", completeBillPayment);
 router.get("/list", canListSubscriptions, getSubscriptionList);
+router.get("/due", canListSubscriptions, getDueBillList);
 
 module.exports = router;

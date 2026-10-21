@@ -548,6 +548,148 @@ const findSubscriptionList = async (
   return { bills, totals, total: Number(total) };
 };
 
+// Bills of the branch that still owe money, oldest bill first.
+// A bill is due when ALL of these hold:
+//   - its subs_balance record (not soft-deleted) has a paid_amount below the
+//     bill total (the sum of its items),
+//   - the balance was not written off (subs_balance.written_off is false),
+//   - the bill's newest payments_status row is not "cancelled". (A part paid
+//     bill is saved as "completed" with a subs_balance record, so the status
+//     cannot be used to find due bills; it is only used to drop cancelled ones.)
+// Paging, filtering and the totals all run in SQL, so total / totals cover
+// every matching bill (all pages), not just the page returned.
+const findDueBillList = async (branchId, { search, page, limit }) => {
+  const base = db("subs_summ as s")
+    .join("subs_balance as b", function joinBalance() {
+      this.on("b.bill_no", "=", "s.bill_no").andOn(
+        "b.branch_id",
+        "=",
+        "s.branch_id",
+      );
+    })
+    .leftJoin("members as m", function joinMember() {
+      this.on("m.id", "=", "s.member_id").andOn(
+        "m.branch_id",
+        "=",
+        "s.branch_id",
+      );
+    })
+    .where("s.branch_id", branchId)
+    .whereNull("s.deleted_at")
+    .whereNull("b.deleted_at")
+    .where("b.written_off", false)
+    .whereNotExists(function newestStatusIsCancelled() {
+      this.select(db.raw("1"))
+        .from("payments_status as ps")
+        .whereRaw("ps.branch_id = s.branch_id")
+        .whereRaw("CAST(ps.subs_billno AS UNSIGNED) = s.bill_no")
+        .where("ps.payments_status", "cancelled")
+        .whereRaw(
+          "ps.id = (SELECT MAX(l.id) FROM payments_status l WHERE l.branch_id = ps.branch_id AND l.subs_billno = ps.subs_billno)",
+        );
+    });
+
+  if (search) {
+    const like = `%${search}%`;
+
+    base.where((query) => {
+      query
+        .whereRaw("CAST(s.bill_no AS CHAR) LIKE ?", [like])
+        .orWhere("m.member_Id", "like", like)
+        .orWhere("m.phone", "like", like);
+    });
+  }
+
+  // One row per bill that still owes money.
+  const due = base
+    .clone()
+    .groupBy(
+      "s.bill_no",
+      "s.bill_date",
+      "s.member_id",
+      "m.first_name",
+      "m.last_name",
+      "m.member_Id",
+      "m.phone",
+      "m.avatar_url",
+      "b.paid_amount",
+    )
+    .havingRaw("SUM(s.total_price) > b.paid_amount")
+    .select(
+      "s.bill_no",
+      formatDay("s.bill_date").as("bill_date"),
+      "s.member_id",
+      "m.first_name",
+      "m.last_name",
+      "m.member_Id as member_code",
+      "m.phone",
+      "m.avatar_url",
+      "b.paid_amount as paid_minor",
+      db.raw("COUNT(*) as item_count"),
+      db.raw("SUM(s.total_price) as total_minor"),
+    );
+
+  const totalsRow = await db
+    .from(due.clone().as("due"))
+    .select(
+      db.raw("COUNT(*) as bill_count"),
+      db.raw("COALESCE(SUM(total_minor), 0) as total_amount"),
+      db.raw("COALESCE(SUM(paid_minor), 0) as total_paid"),
+    )
+    .first();
+
+  const rows = await due
+    .clone()
+    .orderBy("s.bill_date", "asc")
+    .orderBy("s.bill_no", "asc")
+    .limit(limit)
+    .offset((page - 1) * limit);
+
+  const details = await getPaymentDetails(
+    branchId,
+    rows.map((row) => ({
+      bill_no: row.bill_no,
+      total_minor: Number(row.total_minor),
+    })),
+  );
+
+  const totalAmount = Number(totalsRow.total_amount);
+  const totalPaid = Number(totalsRow.total_paid);
+
+  const bills = rows.map((row) => {
+    const totalMinor = Number(row.total_minor);
+    const paidMinor = Number(row.paid_minor);
+
+    return {
+      bill_no: row.bill_no,
+      bill_date: row.bill_date,
+      member: {
+        id: row.member_id,
+        member_id: row.member_code ?? null,
+        name: [row.first_name, row.last_name].filter(Boolean).join(" ") || null,
+        phone: row.phone ?? null,
+        avatar_url: row.avatar_url ?? null,
+      },
+      item_count: Number(row.item_count),
+      total_minor: totalMinor,
+      paid_minor: paidMinor,
+      balance_minor: totalMinor - paidMinor,
+      payment: details.get(String(row.bill_no)).payment,
+    };
+  });
+
+  return {
+    bills,
+    totals: {
+      bill_count: Number(totalsRow.bill_count),
+      total_amount: totalAmount,
+      total_paid: totalPaid,
+      total_balance: totalAmount - totalPaid,
+    },
+    total: Number(totalsRow.bill_count),
+  };
+};
+
 module.exports = {
   generateBillNo,
   getItems,
@@ -557,4 +699,5 @@ module.exports = {
   toBill,
   findSummaryBill,
   findSubscriptionList,
+  findDueBillList,
 };

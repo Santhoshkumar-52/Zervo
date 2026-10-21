@@ -25,11 +25,7 @@ exports.up = async function (knex) {
       .defaultTo(0)
       .comment("Amount paid so far against the bill");
     table
-      .bigInteger("written_off")
-      .unsigned()
-      .notNullable()
-      .defaultTo(0)
-      .comment("Amount of the balance that was written off");
+      .boolean("written_off").defaultTo(false)
 
     // User who wrote the balance off
     table.integer("written_by").unsigned().nullable();

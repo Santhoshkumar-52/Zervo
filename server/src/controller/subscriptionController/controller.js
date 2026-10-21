@@ -20,6 +20,7 @@ const {
   toBill,
   findSummaryBill,
   findSubscriptionList,
+  findDueBillList,
 } = require("./billStore");
 
 // Every lookup is scoped to the logged-in user's branch and hides soft-deleted
@@ -416,10 +417,57 @@ const getSubscriptionList = async (req, res) => {
   }
 };
 
+// Bills that are due: part paid (subs_balance), not written off, not cancelled. The branch
+// comes from the logged-in user. Oldest bill first.
+const getDueBillList = async (req, res) => {
+  try {
+    const { branchId } = req.user;
+
+    const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
+
+    const limit = Math.min(
+      Math.max(Number.parseInt(req.query.limit, 10) || 10, 1),
+      100,
+    );
+
+    const search = req.query.search?.trim() || "";
+
+    const { bills, totals, total } = await findDueBillList(branchId, {
+      search,
+      page,
+      limit,
+    });
+
+    const totalPages = Math.ceil(total / limit);
+
+    return successResponse(
+      res,
+      {
+        bills,
+        totals,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        },
+      },
+      "Due bills fetched successfully",
+    );
+  } catch (error) {
+    console.error("Error fetching due bills:", error);
+
+    return errorResponse(res, "Internal server error", 500);
+  }
+};
+
 module.exports = {
   getBillItems,
   addBillItem,
   completeBillPayment,
   getSummaryBill,
   getSubscriptionList,
+  getDueBillList,
 };
