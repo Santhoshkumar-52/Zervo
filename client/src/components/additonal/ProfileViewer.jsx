@@ -5,6 +5,7 @@ import { Pencil } from "lucide-react";
 import { getMemberById } from "@/api/member/memberApi";
 import StaffProfileViewer from "@/components/additonal/StaffProfileViewer";
 import { formatDate } from "@/components/additonal/SummaryBill/billHelpers";
+import StaffEditor from "@/pages/staff/StaffEditor";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -276,6 +277,7 @@ function ProfileViewer({ open, onOpenChange, memberId, onEdit }) {
   // Trainer whose profile is open on top of this modal.
   const [trainerId, setTrainerId] = useState(null);
   const [trainerOpen, setTrainerOpen] = useState(false);
+  const [trainerEditOpen, setTrainerEditOpen] = useState(false);
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["member-profile", memberId],
@@ -360,6 +362,13 @@ function ProfileViewer({ open, onOpenChange, memberId, onEdit }) {
       <StaffProfileViewer
         open={trainerOpen}
         onOpenChange={setTrainerOpen}
+        staffId={trainerId}
+        onEdit={() => setTrainerEditOpen(true)}
+      />
+
+      <StaffEditor
+        open={trainerEditOpen}
+        onOpenChange={setTrainerEditOpen}
         staffId={trainerId}
       />
     </>

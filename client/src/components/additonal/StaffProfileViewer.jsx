@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Pencil } from "lucide-react";
 
 import { getStaffById } from "@/api/staff/staffApi";
 import { formatDate } from "@/components/additonal/SummaryBill/billHelpers";
@@ -164,13 +165,18 @@ function WorkDetailsPanel({ staff }) {
  * `sm` breakpoint up; on phones the two panels stack vertically. The middle of
  * the modal scrolls when the content is taller than the screen.
  *
+ * Pass `onEdit` to show an Edit icon button next to the close button. It closes
+ * this modal first, then calls `onEdit(staffId)` so the parent can open the
+ * edit dialog. Without `onEdit` the modal stays read-only.
+ *
  *   <StaffProfileViewer
  *     open={open}
  *     onOpenChange={setOpen}
  *     staffId={staff.id}   // users.id (internal id), not user_id
+ *     onEdit={(id) => ...} // optional
  *   />
  */
-function StaffProfileViewer({ open, onOpenChange, staffId }) {
+function StaffProfileViewer({ open, onOpenChange, staffId, onEdit }) {
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["staff-profile", staffId],
     // { staff }
@@ -182,13 +188,34 @@ function StaffProfileViewer({ open, onOpenChange, staffId }) {
     staleTime: 0,
   });
 
+  const handleEdit = () => {
+    onOpenChange?.(false);
+    onEdit?.(staffId);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-3xl">
-        <DialogHeader>
+        {/* The close button sits at right-2; Edit goes just left of it. */}
+        <DialogHeader className="pr-16">
           <DialogTitle>Profile</DialogTitle>
           <DialogDescription>Staff details</DialogDescription>
         </DialogHeader>
+
+        {onEdit && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="absolute top-2 right-10"
+            onClick={handleEdit}
+            disabled={!staffId}
+            aria-label="Edit staff member"
+            title="Edit staff member"
+          >
+            <Pencil />
+          </Button>
+        )}
 
         <div className="min-h-0 space-y-4 overflow-y-auto pr-1">
           {isLoading && <ProfileSkeleton />}

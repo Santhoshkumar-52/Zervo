@@ -7,6 +7,7 @@ import { getStaffAttendanceReport } from "@/api/report/reportApi";
 import DatePicker from "@/components/additonal/DatePicker";
 import DataTable from "@/components/additonal/Datatable/DataTable";
 import StaffProfileViewer from "@/components/additonal/StaffProfileViewer";
+import StaffEditor from "@/pages/staff/StaffEditor";
 import { Label } from "@/components/ui/label";
 
 import { getStaffAttendanceReportColumns } from "./StaffAttendanceReportColumns";
@@ -65,6 +66,7 @@ function StaffAttendanceReportList() {
   // Staff member whose profile modal is open (opened by clicking a name).
   const [profileStaffId, setProfileStaffId] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const isRangeInvalid = Boolean(startDate && endDate && startDate > endDate);
 
@@ -202,6 +204,13 @@ function StaffAttendanceReportList() {
       <StaffProfileViewer
         open={profileOpen}
         onOpenChange={setProfileOpen}
+        staffId={profileStaffId}
+        onEdit={() => setEditOpen(true)}
+      />
+
+      <StaffEditor
+        open={editOpen}
+        onOpenChange={setEditOpen}
         staffId={profileStaffId}
       />
     </div>
