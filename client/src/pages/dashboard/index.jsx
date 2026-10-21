@@ -22,6 +22,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // One entry per chart. `span` holds the full Tailwind classes per breakpoint
 // (kept as complete strings so Tailwind can detect them).
@@ -75,6 +76,77 @@ function ChartMessage({ children }) {
   );
 }
 
+// Wrapper shared by all chart skeletons. Screen readers hear one "Loading ..."
+// message instead of a pile of empty blocks.
+function ChartSkeleton({ label, minHeight = "min-h-[260px]", children }) {
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      className={`flex w-full flex-1 ${minHeight}`}
+    >
+      <span className="sr-only">Loading {label}</span>
+      {children}
+    </div>
+  );
+}
+
+// Bar heights for the trend skeleton (complete Tailwind classes, so they are
+// detected at build time).
+const SKELETON_BAR_HEIGHTS = [
+  "h-2/5",
+  "h-3/5",
+  "h-1/2",
+  "h-4/5",
+  "h-2/3",
+  "h-full",
+  "h-3/5",
+  "h-1/2",
+];
+
+// Skeleton for the area / bar charts: a few pulsing bars on a baseline.
+function TrendSkeleton({ label }) {
+  return (
+    <ChartSkeleton label={label}>
+      <div className="flex w-full items-end gap-2 border-b pb-2">
+        {SKELETON_BAR_HEIGHTS.map((height, index) => (
+          <Skeleton
+            key={index}
+            className={`${height} flex-1 rounded-b-none`}
+          />
+        ))}
+      </div>
+    </ChartSkeleton>
+  );
+}
+
+// Skeleton for the donut charts: a ring with a few legend lines under it.
+// `rings` = 2 draws a second, inner ring (stacked pie chart).
+function DonutSkeleton({ label, rings = 1, minHeight }) {
+  return (
+    <ChartSkeleton label={label} minHeight={minHeight}>
+      <div className="flex w-full flex-col items-center justify-center gap-6">
+        <div className="relative size-44 sm:size-52">
+          <Skeleton className="size-full rounded-full" />
+
+          {rings === 2 && (
+            <Skeleton className="absolute inset-8 rounded-full ring-4 ring-card" />
+          )}
+
+          {/* Hole of the donut */}
+          <div className="absolute inset-1/4 rounded-full bg-card" />
+        </div>
+
+        <div className="flex w-full max-w-48 flex-col gap-2">
+          <Skeleton className="h-3 w-full" />
+          <Skeleton className="h-3 w-4/5" />
+          <Skeleton className="h-3 w-3/5" />
+        </div>
+      </div>
+    </ChartSkeleton>
+  );
+}
+
 // Chart styles a TrendChart can use.
 const TREND_CHARTS = {
   area: AreaChart,
@@ -96,7 +168,7 @@ function TrendChart({
   valueLabel,
   ...chartProps
 }) {
-  if (isLoading) return <ChartMessage>Loading...</ChartMessage>;
+  if (isLoading) return <TrendSkeleton label={valueLabel ?? "chart"} />;
 
   if (isError) return <ChartMessage>Could not load the data.</ChartMessage>;
 
@@ -118,7 +190,7 @@ function TrendChart({
 // dashboard API. Each slice is the money received with that mode (paise); the
 // legend and tooltip also show how many bills the mode paid.
 function PaymentModeChart({ modes, isLoading, isError }) {
-  if (isLoading) return <ChartMessage>Loading...</ChartMessage>;
+  if (isLoading) return <DonutSkeleton label="payment modes" />;
 
   if (isError) return <ChartMessage>Could not load the data.</ChartMessage>;
 
@@ -142,7 +214,7 @@ function PaymentModeChart({ modes, isLoading, isError }) {
 // [{ key, name, count }] from the dashboard API. Each slice is the number of
 // member check-ins of that gender; the middle shows the total.
 function MemberAttendanceChart({ attendance, isLoading, isError }) {
-  if (isLoading) return <ChartMessage>Loading...</ChartMessage>;
+  if (isLoading) return <DonutSkeleton label="member attendance" />;
 
   if (isError) return <ChartMessage>Could not load the data.</ChartMessage>;
 
@@ -167,7 +239,14 @@ function MemberAttendanceChart({ attendance, isLoading, isError }) {
 // API. The inner ring is the gender, the outer ring splits each gender by staff
 // group (owner, manager ...); the middle shows the total.
 function StaffAttendanceChart({ attendance, isLoading, isError }) {
-  if (isLoading) return <ChartMessage>Loading...</ChartMessage>;
+  if (isLoading)
+    return (
+      <DonutSkeleton
+        label="staff attendance"
+        rings={2}
+        minHeight="min-h-[380px]"
+      />
+    );
 
   if (isError) return <ChartMessage>Could not load the data.</ChartMessage>;
 
