@@ -11,6 +11,7 @@ import DateRangeFilter, {
   DATE_RANGE_PRESETS,
 } from "@/components/additonal/DateRangeFilter";
 import { PieChart } from "@/components/additonal/PieChart";
+import { StackedPieChart } from "@/components/additonal/StackedPieChart";
 import Title from "@/components/additonal/Title";
 import { useAuthStore } from "@/store/auth";
 import { formatMoney, formatMoneyCompact } from "@/utils/currency";
@@ -26,7 +27,8 @@ import {
 // (kept as complete strings so Tailwind can detect them).
 //   mobile  : 1 column, everything stacked
 //   md      : 2 columns
-//   xl      : 3 columns -> memberships 2fr, revenue 1fr, attendance full row
+//   xl      : 3 columns -> memberships 2fr, revenue 1fr, then payment modes,
+//             member attendance and staff attendance share the next row
 const CHARTS = [
   {
     key: "memberships",
@@ -50,10 +52,17 @@ const CHARTS = [
     icon: PieChartIcon,
   },
   {
-    key: "attendance",
-    span: "md:col-span-2 xl:col-span-2",
-    title: "Attendance",
-    description: "Total check-ins by gender",
+    key: "memberAttendance",
+    span: "md:col-span-1 xl:col-span-1",
+    title: "Member Attendance",
+    description: "Member check-ins by gender",
+    icon: PieChartIcon,
+  },
+  {
+    key: "staffAttendance",
+    span: "md:col-span-1 xl:col-span-1",
+    title: "Staff Attendance",
+    description: "Staff check-ins by gender and group",
     icon: PieChartIcon,
   },
 ];
@@ -129,17 +138,17 @@ function PaymentModeChart({ modes, isLoading, isError }) {
   );
 }
 
-// Pie chart of the total attendance (check-ins) split by gender:
+// Donut chart of the member attendance split by gender:
 // [{ key, name, count }] from the dashboard API. Each slice is the number of
-// check-ins of that gender; the middle of the donut shows the total.
-function AttendanceGenderChart({ attendance, isLoading, isError }) {
+// member check-ins of that gender; the middle shows the total.
+function MemberAttendanceChart({ attendance, isLoading, isError }) {
   if (isLoading) return <ChartMessage>Loading...</ChartMessage>;
 
   if (isError) return <ChartMessage>Could not load the data.</ChartMessage>;
 
-  const data = (attendance ?? []).map((item) => ({
-    label: item.name,
-    value: item.count,
+  const data = (attendance ?? []).map((gender) => ({
+    label: gender.name,
+    value: gender.count,
   }));
 
   return (
@@ -148,7 +157,38 @@ function AttendanceGenderChart({ attendance, isLoading, isError }) {
       data={data}
       formatValue={(value) => Number(value).toLocaleString()}
       totalLabel="Check-ins"
-      emptyMessage="No check-ins for the selected dates."
+      emptyMessage="No member check-ins for the selected dates."
+    />
+  );
+}
+
+// Stacked pie chart of the staff attendance:
+// [{ key, name, count, groups: [{ key, name, count }] }] from the dashboard
+// API. The inner ring is the gender, the outer ring splits each gender by staff
+// group (owner, manager ...); the middle shows the total.
+function StaffAttendanceChart({ attendance, isLoading, isError }) {
+  if (isLoading) return <ChartMessage>Loading...</ChartMessage>;
+
+  if (isError) return <ChartMessage>Could not load the data.</ChartMessage>;
+
+  const data = (attendance ?? []).map((gender) => ({
+    label: gender.name,
+    children: gender.groups.map((group) => ({
+      key: group.key,
+      label: group.name,
+      value: group.count,
+    })),
+  }));
+
+  return (
+    <StackedPieChart
+      height={380}
+      data={data}
+      formatValue={(value) => Number(value).toLocaleString()}
+      totalLabel="Check-ins"
+      innerLabel="Gender"
+      outerLabel="Group"
+      emptyMessage="No staff check-ins for the selected dates."
     />
   );
 }
@@ -192,7 +232,8 @@ function Dashboard() {
   const [branchId, setBranchId] = useState(userBranchId ?? null);
 
   // GET /api/dashboard - refetches whenever the date range changes.
-  // Resolves with { subscriptions, revenue, payment_modes, attendance }.
+  // Resolves with { subscriptions, revenue, payment_modes, member_attendance,
+  // staff_attendance }.
   const { data, isLoading, isError } = useQuery({
     queryKey: ["dashboard", range.startDate, range.endDate],
     queryFn: () =>
@@ -229,9 +270,16 @@ function Dashboard() {
         isError={isError}
       />
     ),
-    attendance: (
-      <AttendanceGenderChart
-        attendance={data?.attendance}
+    memberAttendance: (
+      <MemberAttendanceChart
+        attendance={data?.member_attendance}
+        isLoading={isLoading}
+        isError={isError}
+      />
+    ),
+    staffAttendance: (
+      <StaffAttendanceChart
+        attendance={data?.staff_attendance}
         isLoading={isLoading}
         isError={isError}
       />

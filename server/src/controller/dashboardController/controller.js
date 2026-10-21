@@ -8,7 +8,8 @@ const {
   findSalesTrend,
   findSalesSeries,
   findPaymentModes,
-  findAttendanceByGender,
+  findMemberAttendanceByGender,
+  findStaffAttendanceByGender,
 } = require("./dashboardStore");
 const { buildTrend } = require("./trend");
 
@@ -43,10 +44,17 @@ const trendLoader = (findDailyRows, findSeries) => async (params) => {
 const paymentModeLoader = (params) =>
   findPaymentModes(params.branchId, params);
 
-// Total attendance (check-ins) in the range split by the member's gender.
+// Member attendance (check-ins) in the range, split by gender, for a pie chart.
 // -> [{ key, name, count }]   (Male, Female, Others, and Not specified when used)
-const attendanceLoader = (params) =>
-  findAttendanceByGender(params.branchId, params);
+const memberAttendanceLoader = (params) =>
+  findMemberAttendanceByGender(params.branchId, params);
+
+// Staff attendance (check-ins) in the range, grouped by gender and, inside each
+// gender, by staff group (owner, manager ...). For a stacked pie: gender inside,
+// group outside.
+// -> [{ key, name, count, groups: [{ key, name, count }] }]
+const staffAttendanceLoader = (params) =>
+  findStaffAttendanceByGender(params.branchId, params);
 
 // key -> loader. The key becomes the property name in the response.
 const loaders = {
@@ -56,8 +64,10 @@ const loaders = {
   revenue: trendLoader(findSalesTrend, findSalesSeries),
   // Bill count and amount received per payment mode, for the whole range
   payment_modes: paymentModeLoader,
-  // Check-ins per gender, for the whole range
-  attendance: attendanceLoader,
+  // Member check-ins per gender, for the whole range
+  member_attendance: memberAttendanceLoader,
+  // Staff check-ins per gender and group, for the whole range
+  staff_attendance: staffAttendanceLoader,
   // other charts: add them here
 };
 
@@ -70,7 +80,8 @@ const loaders = {
 // -> { subscriptions: { group_by, points },
 //      revenue: { group_by, points, series },   (see trendLoader)
 //      payment_modes: [{ id, name, count, amount }],
-//      attendance: [{ key, name, count }] }
+//      member_attendance: [{ key, name, count }],
+//      staff_attendance: [{ key, name, count, groups: [{ key, name, count }] }] }
 const getDashboard = async (req, res) => {
   try {
     const parsed = reportRangeSchema.safeParse({

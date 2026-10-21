@@ -172,8 +172,9 @@ const findPaymentModes = async (branchId, { startDate, endDate }) => {
   });
 };
 
-// Genders a member can have (same values as the members.gender column), in
-// display order. Members without a gender are counted under "unspecified".
+// Genders a person can have (same values as the members.gender and
+// users.gender columns), in display order. People without a gender are
+// counted under "unspecified".
 const GENDERS = [
   { key: "male", name: "Male" },
   { key: "female", name: "Female" },
@@ -181,19 +182,42 @@ const GENDERS = [
 ];
 const UNSPECIFIED_KEY = "unspecified";
 
-// Total attendance for the range, split by the member's gender: one
-// { key, name, count } record per gender.
-//   count = number of check-ins (mem_attendance rows) of members of that gender
-// A check-in counts when its check-in time falls on a day inside the range
-// (both days included) in this branch. Male, Female and Others are always
-// listed (0 when nobody checked in); "Not specified" is listed only when some
-// check-in belongs to a member without a gender.
-const findAttendanceByGender = async (branchId, { startDate, endDate }) => {
-  const rows = await db("mem_attendance as a")
-    .join("members as m", "m.id", "a.member_id")
+// "front_desk" -> "Front desk"
+const groupTitle = (name) => {
+  const text = String(name).replace(/_/g, " ");
+
+  return text.charAt(0).toUpperCase() + text.slice(1);
+};
+
+// Narrows an attendance query (mem_attendance or staff_attendance, as `a`) to
+// this branch and to check-ins whose check-in time falls on a day inside the
+// range (both days included).
+const attendanceInRange = (query, branchId, { startDate, endDate }) =>
+  query
     .where("a.branch_id", branchId)
     .where("a.checkinat", ">=", startDate)
-    .whereRaw("a.checkinat < DATE_ADD(?, INTERVAL 1 DAY)", [endDate])
+    .whereRaw("a.checkinat < DATE_ADD(?, INTERVAL 1 DAY)", [endDate]);
+
+// Male, Female and Others are always listed (0 when nobody checked in);
+// "Not specified" only when some check-in has no gender.
+const withUnspecified = (build) => {
+  const result = GENDERS.map(build);
+  const unspecified = build({ key: UNSPECIFIED_KEY, name: "Not specified" });
+
+  if (unspecified.count > 0) result.push(unspecified);
+
+  return result;
+};
+
+// Member attendance for the range, grouped by gender (for a pie chart).
+// -> [{ key, name, count }]
+//   count = number of check-ins (mem_attendance rows) of members of that gender
+const findMemberAttendanceByGender = async (branchId, range) => {
+  const rows = await attendanceInRange(
+    db("mem_attendance as a").join("members as m", "m.id", "a.member_id"),
+    branchId,
+    range,
+  )
     .groupBy("m.gender")
     .select("m.gender", db.raw("COUNT(*) AS total"));
 
@@ -201,27 +225,71 @@ const findAttendanceByGender = async (branchId, { startDate, endDate }) => {
     rows.map((row) => [row.gender ?? UNSPECIFIED_KEY, Number(row.total)]),
   );
 
-  const result = GENDERS.map(({ key, name }) => ({
+  return withUnspecified(({ key, name }) => ({
     key,
     name,
     count: countByKey.get(key) ?? 0,
   }));
-
-  if (countByKey.get(UNSPECIFIED_KEY)) {
-    result.push({
-      key: UNSPECIFIED_KEY,
-      name: "Not specified",
-      count: countByKey.get(UNSPECIFIED_KEY),
-    });
-  }
-
-  return result;
 };
 
+// Staff attendance for the range, grouped by gender and, inside each gender, by
+// staff group (for a stacked pie: gender inside, group outside).
+// -> [{ key, name, count, groups: [{ key, name, count }] }]
+//   count (gender) = all check-ins (staff_attendance rows) of that gender
+//   groups         = the same check-ins split by the staff member's group
+//                    (owner, manager, front_desk, trainer ...) in group order.
+//                    Every group is listed under every gender (0 when none).
+// The staff member's gender and group are read from users and groups.
+const findStaffAttendanceByGender = async (branchId, range) => {
+  const rows = await attendanceInRange(
+    db("staff_attendance as a")
+      .join("users as u", "u.id", "a.user_id")
+      .join("groups as g", "g.id", "u.group_id"),
+    branchId,
+    range,
+  )
+    .groupBy("u.gender", "g.id")
+    .select("u.gender", "g.id as group_id", db.raw("COUNT(*) AS total"));
+
+  // Every active group, plus a deleted one only when it has check-ins in the
+  // range. Oldest group first, so a group keeps its place.
+  const usedGroupIds = [...new Set(rows.map((row) => row.group_id))];
+
+  const groups = await db("groups")
+    .where(function activeOrUsed() {
+      this.whereNull("deleted_at").orWhereIn("id", usedGroupIds);
+    })
+    .select("id", "name")
+    .orderBy("id", "asc");
+
+  // "<gender>|<group id>" -> number of check-ins.
+  const counts = new Map(
+    rows.map((row) => [
+      `${row.gender ?? UNSPECIFIED_KEY}|${row.group_id}`,
+      Number(row.total),
+    ]),
+  );
+
+  return withUnspecified(({ key, name }) => {
+    const items = groups.map((group) => ({
+      key: String(group.id),
+      name: groupTitle(group.name),
+      count: counts.get(`${key}|${group.id}`) ?? 0,
+    }));
+
+    return {
+      key,
+      name,
+      count: items.reduce((sum, item) => sum + item.count, 0),
+      groups: items,
+    };
+  });
+};
 module.exports = {
   findSubscriptionTrend,
   findSalesTrend,
   findSalesSeries,
   findPaymentModes,
-  findAttendanceByGender,
+  findMemberAttendanceByGender,
+  findStaffAttendanceByGender,
 };
