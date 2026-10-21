@@ -17,6 +17,8 @@ const ROW_HEIGHT = 36;
 const BAR_HEIGHT = 20;
 const AXIS_HEIGHT = 24; // value axis under the rows, it does not scroll
 const CORNER_RADIUS = 4;
+const LEGEND_HEIGHT = 24; // legend row above the rows (text-xs + pb-2)
+const DEFAULT_MIN_HEIGHT = 260; // same as the area chart, so cards line up
 
 // A tooltip needs about this much room above its bar, else it opens below.
 const TOOLTIP_ROOM = 72;
@@ -81,6 +83,8 @@ const getSegments = (item, series, color) => {
  *                   bar is one colour.
  *   segmentsKey     field holding the amount per series key    (default "breakdown")
  *   height          tallest the chart gets, in px               (default 300)
+ *   minHeight       shortest the chart gets, in px, so a few rows do not
+ *                   shrink it; grid lines fill the space   (default 260)
  *   color           bar colour when there are no series; follows the theme
  *   formatLabel     (label) => string, for the row labels and the tooltip
  *   formatValue     (value) => string, for the tooltip
@@ -96,6 +100,7 @@ function BarChart({
   series = NO_SERIES,
   segmentsKey = "breakdown",
   height = 300,
+  minHeight = DEFAULT_MIN_HEIGHT,
   color = "var(--primary)",
   formatLabel = defaultFormatLabel,
   formatValue = defaultFormatValue,
@@ -156,7 +161,14 @@ function BarChart({
   }, [data, labelKey, valueKey, segmentsKey, series, color, innerWidth]);
 
   const hasData = rows.length > 0;
-  const plotHeight = TOP_PAD * 2 + rows.length * ROW_HEIGHT;
+  // Never shorter than minHeight (but never above the tallest height).
+  const floorHeight = Math.min(minHeight, height);
+  const minPlotHeight =
+    floorHeight - AXIS_HEIGHT - (series.length > 0 ? LEGEND_HEIGHT : 0);
+  const plotHeight = Math.max(
+    TOP_PAD * 2 + rows.length * ROW_HEIGHT,
+    minPlotHeight,
+  );
 
   const handleMouseMove = (event) => {
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -194,7 +206,7 @@ function BarChart({
     <div
       ref={containerRef}
       className={cn("flex w-full flex-col", className)}
-      style={hasData ? { maxHeight: height } : { height }}
+      style={hasData ? { minHeight: floorHeight, maxHeight: height } : { height: floorHeight }}
     >
       {!hasData ? (
         <div className="flex h-full items-center justify-center text-sm text-muted-foreground">

@@ -12,6 +12,7 @@ import DateRangeFilter, {
 } from "@/components/additonal/DateRangeFilter";
 import Title from "@/components/additonal/Title";
 import { useAuthStore } from "@/store/auth";
+import { formatMoney, formatMoneyCompact } from "@/utils/currency";
 import {
   Card,
   CardContent,
@@ -51,7 +52,7 @@ const CHARTS = [
 
 function ChartMessage({ children }) {
   return (
-    <div className="flex min-h-64 w-full flex-1 items-center justify-center text-sm text-muted-foreground">
+    <div className="flex min-h-[260px] w-full flex-1 items-center justify-center text-sm text-muted-foreground">
       {children}
     </div>
   );
@@ -63,7 +64,8 @@ const TREND_CHARTS = {
   bar: BarChart,
 };
 
-// Chart for one dashboard trend: { group_by, points: [{ label, value }] }.
+// Chart for one dashboard trend: { group_by, points: [{ label, value, breakdown? }], series? }.
+// When the trend has `series` (e.g. revenue split by plan) the bars are stacked per series.
 // The server already grouped the points (day / week / month / year) and wrote
 // the x axis labels, so they are shown exactly as they come.
 //   type        "area" (default) or "bar"
@@ -88,6 +90,7 @@ function TrendChart({
       data={trend?.points ?? []}
       labelKey="label"
       formatLabel={String}
+      series={trend?.series}
       valueLabel={valueLabel}
       {...chartProps}
     />
@@ -111,7 +114,7 @@ function ChartCard({ title, description, icon: Icon, range, children }) {
       <CardContent className="flex min-h-0 flex-1">
         {/* Chart fills the remaining card height */}
         {children ?? (
-          <div className="flex min-h-64 w-full flex-1 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
+          <div className="flex min-h-[260px] w-full flex-1 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
             Chart coming soon
           </div>
         )}
@@ -159,6 +162,8 @@ function Dashboard() {
         isLoading={isLoading}
         isError={isError}
         valueLabel="Revenue"
+        formatValue={formatMoney}
+        formatAxisValue={formatMoneyCompact}
       />
     ),
   };
