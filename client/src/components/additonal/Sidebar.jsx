@@ -125,6 +125,12 @@ export default function AppSidebar() {
 
   const { logout } = useAuthStore.getState();
 
+  // Subscribe to the user so the sidebar updates on login / token refresh
+  const user = useAuthStore((state) => state.user);
+
+  // Setup and Settings are only for users in group 1
+  const canManageSetup = Number(user?.groupId) === 1;
+
   const isActive = (url) => {
     if (url === "/dashboard") {
       return location.pathname === "/" || location.pathname === "/dashboard";
@@ -263,97 +269,102 @@ export default function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* SETUP */}
-        <SidebarGroup className="mt-2">
-          <SidebarGroupLabel className="px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Setup
-          </SidebarGroupLabel>
+        {/* SETUP (group 1 only) */}
+        {canManageSetup && (
+          <SidebarGroup className="mt-2">
+            <SidebarGroupLabel className="px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Setup
+            </SidebarGroupLabel>
 
-          <SidebarGroupContent>
-            <SidebarMenu className="gap-1">
-              <SidebarMenuItem>
-                <Popover open={setupOpen} onOpenChange={setSetupOpen}>
-                  <PopoverTrigger
-                    render={
-                      <SidebarMenuButton
-                        isActive={isSetupActive}
-                        tooltip="Setup"
-                        className="h-10 px-3"
-                      />
-                    }
-                  >
-                    <Settings className="size-4" />
-
-                    <span className="flex-1 text-left">Setup</span>
-
-                    <ChevronRight className="size-4 shrink-0" />
-                  </PopoverTrigger>
-
-                  <PopoverContent
-                    side="right"
-                    align="start"
-                    sideOffset={8}
-                    className="w-48 gap-0 p-1"
-                  >
-                    <nav aria-label="Setup" className="flex flex-col gap-1">
-                      {setupNavigation.map((item) => {
-                        const Icon = item.icon;
-                        const active = isActive(item.url);
-
-                        return (
-                          <Link
-                            key={item.title}
-                            to={item.url}
-                            aria-current={active ? "page" : undefined}
-                            onClick={() => setSetupOpen(false)}
-                            className={`flex h-9 items-center gap-2 rounded-md px-3 text-sm transition-colors ${
-                              active
-                                ? "bg-accent text-accent-foreground"
-                                : "hover:bg-accent hover:text-accent-foreground"
-                            }`}
-                          >
-                            <Icon className="size-4" />
-
-                            <span>{item.title}</span>
-                          </Link>
-                        );
-                      })}
-                    </nav>
-                  </PopoverContent>
-                </Popover>
-              </SidebarMenuItem>            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* SYSTEM */}
-        <SidebarGroup className="mt-2">
-          <SidebarGroupLabel className="px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            System
-          </SidebarGroupLabel>
-
-          <SidebarGroupContent>
-            <SidebarMenu className="gap-1">
-              {settingsNavigation.map((item) => {
-                const Icon = item.icon;
-                const active = isActive(item.url);
-
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      isActive={active}
-                      tooltip={item.title}
-                      className="h-10 px-3"
-                      render={<Link to={item.url} />}
+            <SidebarGroupContent>
+              <SidebarMenu className="gap-1">
+                <SidebarMenuItem>
+                  <Popover open={setupOpen} onOpenChange={setSetupOpen}>
+                    <PopoverTrigger
+                      render={
+                        <SidebarMenuButton
+                          isActive={isSetupActive}
+                          tooltip="Setup"
+                          className="h-10 px-3"
+                        />
+                      }
                     >
-                      <Icon className="size-4" />
-                      <span>{item.title}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+                      <Settings className="size-4" />
+
+                      <span className="flex-1 text-left">Setup</span>
+
+                      <ChevronRight className="size-4 shrink-0" />
+                    </PopoverTrigger>
+
+                    <PopoverContent
+                      side="right"
+                      align="start"
+                      sideOffset={8}
+                      className="w-48 gap-0 p-1"
+                    >
+                      <nav aria-label="Setup" className="flex flex-col gap-1">
+                        {setupNavigation.map((item) => {
+                          const Icon = item.icon;
+                          const active = isActive(item.url);
+
+                          return (
+                            <Link
+                              key={item.title}
+                              to={item.url}
+                              aria-current={active ? "page" : undefined}
+                              onClick={() => setSetupOpen(false)}
+                              className={`flex h-9 items-center gap-2 rounded-md px-3 text-sm transition-colors ${
+                                active
+                                  ? "bg-accent text-accent-foreground"
+                                  : "hover:bg-accent hover:text-accent-foreground"
+                              }`}
+                            >
+                              <Icon className="size-4" />
+
+                              <span>{item.title}</span>
+                            </Link>
+                          );
+                        })}
+                      </nav>
+                    </PopoverContent>
+                  </Popover>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {/* SYSTEM / SETTINGS (group 1 only) */}
+        {canManageSetup && (
+          <SidebarGroup className="mt-2">
+            <SidebarGroupLabel className="px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              System
+            </SidebarGroupLabel>
+
+            <SidebarGroupContent>
+              <SidebarMenu className="gap-1">
+                {settingsNavigation.map((item) => {
+                  const Icon = item.icon;
+                  const active = isActive(item.url);
+
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        isActive={active}
+                        tooltip={item.title}
+                        className="h-10 px-3"
+                        render={<Link to={item.url} />}
+                      >
+                        <Icon className="size-4" />
+                        <span>{item.title}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
 
       {/* FOOTER */}

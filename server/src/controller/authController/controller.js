@@ -138,7 +138,7 @@ const login = async (req, res) => {
           role: user.role,
           groupId: user.group_id,
           branchId: user.branch_id,
-          
+          settings: user.group_id == 1 ? true : false,
         },
         branch: toBranchPayload(branch),
       },
@@ -278,9 +278,7 @@ const refreshToken = async (req, res) => {
     }
 
     // Branch details, so the client keeps them in sync after a refresh
-    const branch = await db("branches")
-      .where({ id: user.branch_id })
-      .first();
+    const branch = await db("branches").where({ id: user.branch_id }).first();
 
     // Get access token expiry from environment
     const accessTokenExpiresIn = process.env.JWT_ACCESS_EXPIRES_IN || "15m";
