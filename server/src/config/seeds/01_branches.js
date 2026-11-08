@@ -12,7 +12,8 @@ export async function seed(knex) {
       phone: "04412345678",
       created_at: new Date(),
       updated_at: new Date(),
-      subbill_url: "https://example.com/",
+      subbill_url: "summary-bill",
+      receipt_url: "receipt-bill",
       logo: "https://res.cloudinary.com/samxg4vp/image/upload/v1791735500/Zervo_Futuristic_Fitness_Logo_kpsxpd.png",
       attend_background:
         "https://res.cloudinary.com/samxg4vp/image/upload/v1792081467/istockphoto-610431768-1024x1024_mkqsfc.jpg",
@@ -25,7 +26,8 @@ export async function seed(knex) {
       phone: "04412345679",
       created_at: new Date(),
       updated_at: new Date(),
-      subbill_url: "https://example.com/",
+      subbill_url: "summary-bill",
+      receipt_url: "receipt-bill",
       logo: "https://res.cloudinary.com/samxg4vp/image/upload/v1791735500/Zervo_Futuristic_Fitness_Logo_kpsxpd.png",
       currency: "₹",
       attend_background:

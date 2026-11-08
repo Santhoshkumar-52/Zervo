@@ -24,7 +24,16 @@ export async function up(knex) {
     // Optional
     table.string("phone", 20).nullable();
     table.string("currency", 20).notNullable().defaultTo("₹");
-    table.string("subbill_url", 2083).notNullable();
+    // Which bill page the branch uses (the client route / theme name).
+    // Values go in the second argument: enu(column, values).
+    table
+      .enu("subbill_url", ["summary-bill", "diwali", "pongal"])
+      .notNullable()
+      .defaultTo("summary-bill");
+    table
+      .enu("receipt_url", ["receipt-bill", "diwali", "pongal"])
+      .notNullable()
+      .defaultTo("receipt-bill");
 
     // UTC timestamps
     table.dateTime("created_at").notNullable();
