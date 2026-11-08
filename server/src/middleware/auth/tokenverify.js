@@ -1,7 +1,8 @@
-﻿const jwt = require("jsonwebtoken");
+const jwt = require("jsonwebtoken");
 
 const db = require("../../config/knexfile"); // adjust path
 const { errorResponse } = require("../../utils/response");
+const { OWNER_GROUP_ID } = require("../../utils/roles");
 
 const tokenVerify = async (req, res, next) => {
   try {
@@ -58,7 +59,11 @@ const tokenVerify = async (req, res, next) => {
         "t.is_revoked": false,
         "u.is_active": true,
         "u.deleted_at": null,
-        "b.is_active": true,
+      })
+      // The branch must be active, except for the owner (group 1), who can use
+      // the app even when their branch is inactive.
+      .where(function () {
+        this.where("b.is_active", true).orWhere("u.group_id", OWNER_GROUP_ID);
       })
       .where("t.access_token_expires_at", ">", new Date())
       .select("u.id", "u.full_name", "u.email", "u.group_id", "u.branch_id")

@@ -1,11 +1,7 @@
 const db = require("../../config/knexfile");
 const { successResponse, errorResponse } = require("../../utils/response");
+const { isOwner } = require("../../utils/roles");
 const { updateBranchSchema, formatZodError } = require("./schema");
-
-// Group 1 is the owner (see ROLES in staffController/schema.js). tokenVerify
-// reads the group id from the database and puts it on req.user.role, so it is
-// not taken from the token payload.
-const OWNER_GROUP_ID = 1;
 
 // Columns returned for a branch.
 const BRANCH_COLUMNS = [
@@ -51,7 +47,7 @@ const ensureOwner = (req, res, forbiddenMessage) => {
     return false;
   }
 
-  if (Number(req.user.role) !== OWNER_GROUP_ID) {
+  if (!isOwner(req.user.role)) {
     errorResponse(res, forbiddenMessage, 403);
 
     return false;
@@ -127,13 +123,6 @@ const updateBranch = async (req, res) => {
     const existing = await findBranch(id);
 
     if (!existing) return errorResponse(res, "Branch not found", 404);
-
-    // Deactivating the branch you are logged into would lock you out of it.
-    if (changes.is_active === false && id === Number(req.user.branchId)) {
-      return errorResponse(res, "You cannot deactivate your own branch", 400, [
-        { field: "is_active", message: "Your own branch must stay active" },
-      ]);
-    }
 
     // Empty string clears an optional column.
     if (changes.address !== undefined) {

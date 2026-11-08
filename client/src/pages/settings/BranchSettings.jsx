@@ -241,9 +241,6 @@ function BranchSettings() {
       : (branches[0]?.id ?? null));
 
   const selected = branches.find((branch) => branch.id === selectedId);
-
-  const isOwnBranch = selected?.id === Number(userBranchId);
-
   // The saved currency is always selectable, even if it is not in the list.
   const currencyItems = useMemo(() => {
     const saved = selected?.currency;
@@ -583,18 +580,14 @@ function BranchSettings() {
                       <div className="flex flex-col gap-0.5">
                         <span className="text-sm font-medium">Status</span>
                         <span className="text-xs text-muted-foreground">
-                          {isOwnBranch
-                            ? "This is your own branch, so it must stay active."
-                            : field.value
-                              ? "Active branch"
-                              : "Inactive branch"}
+                          {field.value ? "Active branch" : "Inactive branch"}
                         </span>
                       </div>
 
                       <Switch
                         checked={field.value}
                         onCheckedChange={field.onChange}
-                        disabled={isOwnBranch || isSaving}
+                        disabled={isSaving}
                         aria-label="Branch status"
                       />
                     </div>

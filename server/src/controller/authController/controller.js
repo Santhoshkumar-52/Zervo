@@ -6,6 +6,8 @@ const { hashPassword, comparePassword } = require("../../utils/hashhelper");
 
 const { successResponse, errorResponse } = require("../../utils/response");
 
+const { isOwner } = require("../../utils/roles");
+
 // Branch details sent to the client (kept in its auth store).
 // Explicit fields only, so new columns are never exposed by accident.
 const toBranchPayload = (branch) =>
@@ -70,8 +72,9 @@ const login = async (req, res) => {
       return errorResponse(res, "User branch is not valid", 403);
     }
 
-    // Check branch status
-    if (!branch.is_active) {
+    // Check branch status. The owner (group 1) can log in even when the
+    // branch is inactive; everyone else cannot.
+    if (!branch.is_active && !isOwner(user.group_id)) {
       return errorResponse(res, "User branch is inactive. Contact Admin", 403);
     }
 
@@ -138,7 +141,7 @@ const login = async (req, res) => {
           role: user.role,
           groupId: user.group_id,
           branchId: user.branch_id,
-          settings: user.group_id == 1 ? true : false,
+          settings: isOwner(user.group_id),
         },
         branch: toBranchPayload(branch),
       },
