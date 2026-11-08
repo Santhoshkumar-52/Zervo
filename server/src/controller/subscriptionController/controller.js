@@ -1,5 +1,6 @@
 const db = require("../../config/knexfile");
 const { successResponse, errorResponse } = require("../../utils/response");
+const { buildBillUrl } = require("../../utils/billUrl");
 const {
   DISCOUNT_TYPE,
   calculateTotals,
@@ -59,6 +60,39 @@ const findPayment = (id, branchId) =>
 // Cash is payment_id 1. Only cash may take more than the grand total; the
 // difference is given back as change. Every other method has no change.
 const CASH_PAYMENT_ID = 1;
+
+// The link the client opens for the customer once a payment is saved:
+// CLIENT_URL + the branch's subbill_url + ?id=<bill_no> (see utils/billUrl.js).
+// The payment is already saved by the time this runs, so a failed lookup gives
+// null instead of an error.
+const getSubbillUrl = async (branchId) => {
+  try {
+    const branch = await db("branches")
+      .where({ id: branchId })
+      .select("subbill_url")
+      .first();
+
+    return branch?.subbill_url ?? null;
+  } catch (error) {
+    console.error("Error reading branch subbill_url:", error);
+
+    return null;
+  }
+};
+
+const getBillUrl = async (branchId, billNo) =>
+  buildBillUrl(await getSubbillUrl(branchId), billNo);
+
+// Adds bill_url to every bill of a list (one branch lookup for the whole list),
+// so the report pages open the bill from the link the server gives them.
+const addBillUrls = async (branchId, bills) => {
+  const subbillUrl = await getSubbillUrl(branchId);
+
+  return bills.map((bill) => ({
+    ...bill,
+    bill_url: buildBillUrl(subbillUrl, bill.bill_no),
+  }));
+};
 
 // GET /api/subscription/items?bill_no=
 // -> { bill_no, items, totals } for that bill (empty when no bill_no is sent).
@@ -231,6 +265,8 @@ const rejectPayment = (res, message, status) => {
 //   paid_price >= grand total -> "completed"
 //   paid_price <  grand total -> "pending" (not fully paid)
 // change is paid_price - grand total for cash, otherwise 0.
+// The response also carries bill_url, the link the client opens to show the
+// customer the bill: CLIENT_URL + the branch's subbill_url + ?id=<bill_no>.
 const completeBillPayment = async (req, res) => {
   try {
     const parsed = completePaymentSchema.safeParse(req.body);
@@ -317,6 +353,7 @@ const completeBillPayment = async (req, res) => {
         paid_price: paidPrice,
         change: changePrice,
         payments_status: paymentsStatus,
+        bill_url: await getBillUrl(branchId, billNo),
       },
       paymentsStatus === "completed"
         ? "Payment completed successfully"
@@ -339,6 +376,7 @@ const completeBillPayment = async (req, res) => {
 //   paid_amount <  due -> payments_status "pending" (balance still owed)
 // Only cash may be more than the due amount; the extra is given back as change
 // and is not added to subs_balance.
+// The response also carries bill_url, the same bill link as the payment above.
 const payDueAmount = async (req, res) => {
   try {
     const parsed = payDueSchema.safeParse(req.body);
@@ -377,7 +415,7 @@ const payDueAmount = async (req, res) => {
 
     return successResponse(
       res,
-      result.data,
+      { ...result.data, bill_url: await getBillUrl(branchId, billNo) },
       result.data.payments_status === "completed"
         ? "Due amount paid in full"
         : "Part payment recorded, balance still due",
@@ -422,6 +460,8 @@ const getSummaryBill = async (req, res) => {
 // Lists the logged-in user's branch bills, one row per
 // bill, newest first. page defaults to 1 and limit to 10 (max 100); search
 // matches the bill no, the member's member_Id or the member's phone.
+// Every bill also carries bill_url (CLIENT_URL + the branch's subbill_url +
+// ?id=<bill_no>), the link the View button opens.
 // Each bill carries its payment status, balance status and what was received
 // per method (cash, card, upi); `totals` adds the same up over every matching
 // bill, not just the page. Money is in minor units.
@@ -465,7 +505,7 @@ const getSubscriptionList = async (req, res) => {
     return successResponse(
       res,
       {
-        bills,
+        bills: await addBillUrls(branchId, bills),
         totals,
         pagination: {
           page,
@@ -486,7 +526,8 @@ const getSubscriptionList = async (req, res) => {
 };
 
 // Bills that are due: part paid (subs_balance), not written off, not cancelled. The branch
-// comes from the logged-in user. Oldest bill first.
+// comes from the logged-in user. Oldest bill first. Every bill also carries
+// bill_url, the same bill link as the subscription list.
 const getDueBillList = async (req, res) => {
   try {
     const { branchId } = req.user;
@@ -511,7 +552,7 @@ const getDueBillList = async (req, res) => {
     return successResponse(
       res,
       {
-        bills,
+        bills: await addBillUrls(branchId, bills),
         totals,
         pagination: {
           page,

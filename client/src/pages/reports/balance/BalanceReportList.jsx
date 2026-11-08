@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { SearchX, Wallet } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 
 import { getDueBillList } from "@/api/subscription/subscriptionApi";
 import DataTable from "@/components/additonal/Datatable/DataTable";
@@ -48,8 +47,6 @@ const getApiError = (error, fallback) =>
  *     page, limit, search  -> from `pagination` and `appliedSearch`
  */
 function BalanceReportList() {
-  const navigate = useNavigate();
-
   // `search` is the input text; `appliedSearch` is the debounced value the
   // list is actually fetched with.
   const [search, setSearch] = useState("");
@@ -105,7 +102,14 @@ function BalanceReportList() {
   const columns = useMemo(
     () =>
       getBalanceReportColumns({
-        onView: (bill) => navigate(`/summary-bill?id=${bill.bill_no}`),
+        // Opens in a new tab. The server sends the link (CLIENT_URL +
+        // subbill_url + ?id=<bill_no>); the relative route is only a fallback
+        // when it could not build one.
+        onView: (bill) =>
+          window.open(
+            bill.bill_url ?? `/summary-bill?id=${bill.bill_no}`,
+            "_blank",
+          ),
         onViewProfile: (memberId) => {
           setProfileMemberId(memberId);
           setProfileOpen(true);
@@ -115,7 +119,7 @@ function BalanceReportList() {
           setDueOpen(true);
         },
       }),
-    [navigate],
+    [],
   );
 
   return (

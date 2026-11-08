@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { format, subDays } from "date-fns";
 import { FileBarChart, SearchX } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 
 import { getSubscriptionList } from "@/api/subscription/subscriptionApi";
 import DatePicker from "@/components/additonal/DatePicker";
@@ -52,8 +51,6 @@ const getApiError = (error, fallback) =>
  *     page, limit, search   -> from `pagination` and `appliedSearch`
  */
 function SubscriptionReportList() {
-  const navigate = useNavigate();
-
   const [startDate, setStartDate] = useState(() =>
     format(subDays(new Date(), DEFAULT_RANGE_DAYS - 1), DATE_VALUE_FORMAT),
   );
@@ -137,13 +134,20 @@ function SubscriptionReportList() {
   const columns = useMemo(
     () =>
       getSubscriptionReportColumns({
-        onView: (bill) => navigate(`/summary-bill?id=${bill.bill_no}`),
+        // Opens in a new tab. The server sends the link (CLIENT_URL +
+        // subbill_url + ?id=<bill_no>); the relative route is only a fallback
+        // when it could not build one.
+        onView: (bill) =>
+          window.open(
+            bill.bill_url ?? `/summary-bill?id=${bill.bill_no}`,
+            "_blank",
+          ),
         onViewProfile: (memberId) => {
           setProfileMemberId(memberId);
           setProfileOpen(true);
         },
       }),
-    [navigate],
+    [],
   );
 
   return (

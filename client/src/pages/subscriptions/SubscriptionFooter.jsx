@@ -19,9 +19,11 @@ const toMinor = (text) => Math.round(Number(text) * 100);
 const isCashMethod = (method) =>
   method?.label?.trim().toLowerCase() === "cash";
 
-// The summary bill page reads the bill number from `?id=`.
-const getSummaryBillUrl = (billNo) =>
-  `/summary-bill?id=${encodeURIComponent(billNo)}`;
+// The server sends the link to open in `payment.bill_url` (CLIENT_URL + the
+// branch's subbill_url + ?id=<bill_no>). This relative link is only a fallback
+// for when the server could not build it.
+const getBillUrl = (payment) =>
+  payment.bill_url ?? `/summary-bill?id=${encodeURIComponent(payment.bill_no)}`;
 
 // Checks run on Pay. The amount is typed in major units (e.g. 1593.50) and
 // compared in minor units. Only cash may be more than the grand total (the
@@ -69,7 +71,7 @@ const createPaySchema = ({ grandTotalMinor, isCash }) =>
 //
 // `onPay` should return the payment result (with `bill_no`) when the payment
 // is saved, and nothing when it fails. After a saved payment the bill opens in
-// a new tab at /summary-bill?id=<bill_no>.
+// a new tab at the `bill_url` the server sent back.
 function SubscriptionFooter({
   itemCount,
   grandTotalMinor,
@@ -129,10 +131,10 @@ function SubscriptionFooter({
 
     if (payment?.bill_no) {
       if (billTab) {
-        billTab.location.href = getSummaryBillUrl(payment.bill_no);
+        billTab.location.href = getBillUrl(payment);
       } else {
         // The popup was blocked: open it now as a fallback.
-        window.open(getSummaryBillUrl(payment.bill_no), "_blank");
+        window.open(getBillUrl(payment), "_blank");
       }
     } else {
       billTab?.close();

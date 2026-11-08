@@ -48,7 +48,9 @@ export const addSubscriptionItem = (payload) =>
 // total, otherwise "pending". For cash (payment_id 1) any extra is returned as
 // change; every other method has change 0.
 // Response: { success, message, data: { bill_no, payment_id, paid_price,
-//             change, payments_status } }
+//             change, payments_status, bill_url } }
+// bill_url is the link to open for the customer, built by the server from
+// CLIENT_URL + the branch's subbill_url + ?id=<bill_no>.
 export const completeSubscriptionPayment = (payload) =>
   api.post("/subscription/payment", payload).then((res) => res.data.data);
 
@@ -72,7 +74,9 @@ export const getSummaryBill = (billNo) =>
 // Response: { success, message, data: { bills, pagination } }
 //   bills:      [{ bill_no, bill_date, member: { id, member_id, name, phone, avatar_url },
 //                  item_count, total_minor,
-//                  payment: { status, method, paid_on } }]
+//                  payment: { status, method, paid_on }, bill_url }]
+//   bill_url is the link the View button opens (CLIENT_URL + the branch's
+//   subbill_url + ?id=<bill_no>), built by the server.
 //   pagination: { page, limit, total, totalPages, hasNextPage, hasPreviousPage }
 export const getSubscriptionList = (params = {}) => {
   // Drop empty values so we never send ?search=
@@ -97,7 +101,8 @@ export const getSubscriptionList = (params = {}) => {
 // Response: { success, message, data: { bills, totals, pagination } }
 //   bills:      [{ bill_no, bill_date, member: { id, member_id, name, phone, avatar_url },
 //                  item_count, total_minor, paid_minor, balance_minor,
-//                  payment: { status, method, paid_on, balance, balance_status } }]
+//                  payment: { status, method, paid_on, balance, balance_status },
+//                  bill_url }]   (bill_url: same link as in /subscription/list)
 //   totals:     { bill_count, total_amount, total_paid, total_balance }
 //               (minor units, every matching bill - not just this page)
 //   pagination: { page, limit, total, totalPages, hasNextPage, hasPreviousPage }
@@ -136,7 +141,7 @@ export const getBillDetails = (billNo) =>
 // when the due is cleared, otherwise "pending". Only cash (payment_id 1) may be
 // more than the due amount; the extra comes back as change.
 // Response: { success, message, data: { bill_no, payment_id, paid_amount,
-//             change, paid_total, balance, payments_status } }
+//             change, paid_total, balance, payments_status, bill_url } }
 // 404 when the bill or payment method is not found; 409 when the bill has no
 // due amount, is cancelled or was written off.
 export const payDueAmount = (payload) =>
