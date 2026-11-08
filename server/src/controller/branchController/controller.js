@@ -32,6 +32,34 @@ const parseId = (value) => {
 const findBranch = (id) =>
   db("branches").select(BRANCH_COLUMNS).where({ id }).first();
 
+// Access check shared by every branch handler.
+//
+//   401  no verified user on the request. tokenVerify (applied to /api/branch
+//        in routes/index.js) sets req.user only after the token's signature,
+//        expiry and database session all check out, so a missing req.user means
+//        the request was not authenticated.
+//   403  authenticated, but the user's group id is not 1 (owner).
+//
+// Returns true when the request may continue. Otherwise it has already sent
+// the error response and the handler must return.
+const ensureOwner = (req, res, forbiddenMessage) => {
+  if (!req.user?.userId) {
+    errorResponse(res, "Authentication required", 401, {
+      code: "TOKEN_INVALID",
+    });
+
+    return false;
+  }
+
+  if (Number(req.user.role) !== OWNER_GROUP_ID) {
+    errorResponse(res, forbiddenMessage, 403);
+
+    return false;
+  }
+
+  return true;
+};
+
 // GET /api/branch
 // Every branch, active and inactive, ordered by name (is_active tells them
 // apart). Not scoped to the user's branch: only a user whose group id is 1
@@ -41,12 +69,14 @@ const findBranch = (id) =>
 //                   created_at, updated_at }] }
 const getBranches = async (req, res) => {
   try {
-    if (req.user?.role !== OWNER_GROUP_ID) {
-      return errorResponse(
+    if (
+      !ensureOwner(
+        req,
         res,
         "You do not have permission to view all branches. Contact Admin",
-        403,
-      );
+      )
+    ) {
+      return;
     }
 
     const branches = await db("branches")
@@ -61,18 +91,20 @@ const getBranches = async (req, res) => {
   }
 };
 
-// PATCH /api/branch/:id   (owner only)
+// PATCH /api/branch/:id   (verified token + owner, group id 1, only)
 // body (any of): { name, code, logo, attend_background, address, phone,
 //                  currency, subbill_url, receipt_url, is_active }
 // -> { branch }
 const updateBranch = async (req, res) => {
   try {
-    if (req.user?.role !== OWNER_GROUP_ID) {
-      return errorResponse(
+    if (
+      !ensureOwner(
+        req,
         res,
         "You do not have permission to edit branches. Contact Admin",
-        403,
-      );
+      )
+    ) {
+      return;
     }
 
     const id = parseId(req.params.id);
