@@ -5,12 +5,15 @@
 // e.g. CLIENT_URL=http://localhost:5173, subbill_url="summary-bill", bill 1042
 //   -> http://localhost:5173/summary-bill?id=1042
 //
+// A due receipt's link adds &receipt=<subs_balance id>, so the bill opens with
+// the payment as it stood at that receipt (see findPaymentAtReceipt).
+//
 // subbill_url is stored per branch and can be any path the client serves. It is
 // attached as it is (stray slashes around it are ignored). Returns null when
 // the pieces are missing, so a bad setting never breaks a saved payment.
 let warnedNoClientUrl = false;
 
-const buildBillUrl = (subbillUrl, billNo) => {
+const buildBillUrl = (subbillUrl, billNo, receiptId = null) => {
   const clientUrl = String(process.env.CLIENT_URL ?? "")
     .trim()
     .replace(/\/+$/, "");
@@ -31,7 +34,11 @@ const buildBillUrl = (subbillUrl, billNo) => {
     return null;
   }
 
-  return `${clientUrl}/${path}?id=${encodeURIComponent(billNo)}`;
+  const url = `${clientUrl}/${path}?id=${encodeURIComponent(billNo)}`;
+
+  return receiptId === null || receiptId === undefined
+    ? url
+    : `${url}&receipt=${encodeURIComponent(receiptId)}`;
 };
 
 module.exports = { buildBillUrl };

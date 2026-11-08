@@ -27,7 +27,7 @@ function PaymentInfo({ status, payment = {}, className = "" }) {
           },
           {
             label: "Paid on",
-            value: isPaid && payment.paid_on ? formatDate(payment.paid_on) : undefined,
+            value: payment.paid_on ? formatDate(payment.paid_on) : undefined,
           },
         ]}
       />

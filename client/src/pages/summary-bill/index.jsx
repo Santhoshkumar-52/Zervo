@@ -6,6 +6,8 @@ import { getSummaryBill } from "@/api/subscription/subscriptionApi";
 import SummaryBill from "@/components/additonal/SummaryBill";
 
 // /summary-bill?id=1042 - `id` is the bill number (subs_summ.bill_no).
+// /summary-bill?id=1042&receipt=17 - `receipt` (optional) is a due receipt of
+// that bill; the payment then shows as it stood at that receipt.
 // Kept outside AppLayout so the bill gets the whole page and prints cleanly.
 //
 // This page does not use the app theme. Colours are fixed (zinc, with the bill's
@@ -52,10 +54,11 @@ function SummaryBillPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const billNo = parseBillNo(searchParams.get("id"));
+  const receiptId = parseBillNo(searchParams.get("receipt"));
 
   const { data: bill, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["summary-bill", billNo],
-    queryFn: () => getSummaryBill(billNo),
+    queryKey: ["summary-bill", billNo, receiptId],
+    queryFn: () => getSummaryBill(billNo, receiptId),
     enabled: billNo !== null,
     // A missing bill won't appear on a retry.
     retry: (count, err) => err?.response?.status !== 404 && count < 1,

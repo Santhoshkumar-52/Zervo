@@ -307,10 +307,68 @@ const formatDay = (column) => ({
   as: (alias) => db.raw("DATE_FORMAT(??, '%Y-%m-%d') AS ??", [column, alias]),
 });
 
+// The payment of one due receipt (a subs_balance record) as it stood at that
+// moment, in the shape of the summary bill's `payment`. A bill's own payment
+// always describes its latest state, so a receipt opened later would show
+// today's balance; this gives the figures of the day instead:
+//   paid_price / change  what was handed over for that receipt, and given back
+//   due_before           what the bill still owed just before it
+//   balance              what the bill still owed right after it
+//   receipt_no           1, 2, ... for the bill's due payments (null for the
+//                        part payment made with the bill), as in the due
+//                        receipt report
+// e.g. due 1500: pays 400 -> due_before 1500, balance 1100; pays 600 ->
+// due_before 1100, balance 500.
+// Method and change come from the bill's payments_status rows, paired with the
+// receipts the same way as in findDuePaymentList. Returns null when the record
+// is not one of this bill's.
+const findPaymentAtReceipt = async (branchId, billNo, receiptId, totalMinor) => {
+  const records = await db("subs_balance")
+    .where({ branch_id: branchId, bill_no: billNo })
+    .whereNull("deleted_at")
+    .orderBy("id")
+    .select("id", "paid_amount", "created_at");
+
+  const index = records.findIndex((record) => Number(record.id) === receiptId);
+
+  if (index === -1) return null;
+
+  const applied = Number(records[index].paid_amount);
+  const paidToDate = records
+    .slice(0, index + 1)
+    .reduce((sum, record) => sum + Number(record.paid_amount), 0);
+
+  const statuses = await db("payments_status as ps")
+    .leftJoin("payments as p", "p.id", "ps.payment_id")
+    .where({ "ps.branch_id": branchId, "ps.subs_billno": String(billNo) })
+    .orderBy("ps.id")
+    .select("ps.payments_status", "ps.paid_price", "ps.change", "p.payment_name");
+
+  // The last (records - 1) status rows belong to the due payments, in order.
+  const status =
+    statuses[Math.max(statuses.length - (records.length - 1) + index - 1, 0)];
+
+  const balance = Math.max(totalMinor - paidToDate, 0);
+
+  return {
+    status: status?.payments_status ?? (balance === 0 ? "completed" : "pending"),
+    method: status?.payment_name ?? null,
+    paid_on: records[index].created_at,
+    paid_price: Number(status?.paid_price ?? applied),
+    change: Number(status?.change ?? 0),
+    balance,
+    due_before: Math.max(totalMinor - (paidToDate - applied), 0),
+    receipt_no: index > 0 ? index : null,
+  };
+};
+
 // Everything the summary bill page shows for one bill number, scoped to the
 // branch. A bill is one subs_summ row per item, so the header figures are the
 // sum of those rows. Returns null when the bill does not exist.
-const findSummaryBill = async (branchId, billNo) => {
+// With receiptId (a subs_balance record, see findPaymentAtReceipt) `payment` is
+// the payment as it stood at that receipt instead of the bill's latest state;
+// null then also when the receipt is not one of this bill's.
+const findSummaryBill = async (branchId, billNo, receiptId = null) => {
   const [summRows, items, branch] = await Promise.all([
     db("subs_summ as s")
       .leftJoin("users as u", "u.id", "s.created_by")
@@ -465,7 +523,7 @@ const findSummaryBill = async (branchId, billNo) => {
       ? summary.total_price - Number(balanceRow.paid_amount)
       : 0;
 
-  return {
+  const bill = {
     branch,
     summary,
     member: member ?? null,
@@ -480,6 +538,17 @@ const findSummaryBill = async (branchId, billNo) => {
     },
     issued_by: first.issued_by ?? null,
   };
+
+  if (receiptId === null) return bill;
+
+  const atReceipt = await findPaymentAtReceipt(
+    branchId,
+    billNo,
+    receiptId,
+    summary.total_price,
+  );
+
+  return atReceipt ? { ...bill, payment: atReceipt } : null;
 };
 
 const METHOD_KEYS = ["cash", "card", "upi"];
@@ -946,6 +1015,203 @@ const findBillDetails = async (branchId, billNo) => {
   };
 };
 
+// The payments of a due amount (one receipt each), newest first, for the
+// payments made between startDate and endDate (both days included). Scoped to
+// the branch. Search matches the bill no, the member's member_Id and phone.
+//
+// How a bill's payments are stored: its subs_balance records, oldest first, are
+//   1st  the part payment made when the bill was paid (this is what left a due)
+//   2nd+ one record for every later payment of the due amount (see payDue)
+// so every record after the first is one due payment = one receipt. Each
+// receipt is shown with the balance as it was then, not as it is today:
+//   due_before_minor  what the bill still owed just before this payment
+//   paid_minor        what this payment settled (change is not counted)
+//   balance_minor     what the bill still owed right after this payment
+// e.g. due 1500: pays 400 -> balance 1100; pays 600 more -> balance 500.
+//
+// Method and change come from the bill's payments_status rows. The first
+// payment is saved on every status row of the bill (one per item), then each
+// due payment adds one row, so the last rows pair with the receipts in order.
+// Returns { payments, totals, total }: total counts every matching receipt and
+// totals adds up all of them (all pages). Money is in minor units.
+const findDuePaymentList = async (
+  branchId,
+  { startDate, endDate, search, page, limit },
+) => {
+  // One row per bill: what it adds up to, whose it is and its subscription numbers.
+  const billTotals = db("subs_summ")
+    .where("branch_id", branchId)
+    .whereNull("deleted_at")
+    .groupBy("branch_id", "bill_no")
+    .select(
+      "branch_id",
+      "bill_no",
+      db.raw("MAX(member_id) AS member_id"),
+      db.raw("DATE_FORMAT(MAX(bill_date), '%Y-%m-%d') AS bill_date"),
+      db.raw(
+        "GROUP_CONCAT(DISTINCT subscription_no ORDER BY subscription_no SEPARATOR ', ') AS subscription_no",
+      ),
+      db.raw("SUM(total_price) AS total_minor"),
+    );
+
+  const base = db("subs_balance as b")
+    .join(billTotals.as("t"), function joinBill() {
+      this.on("t.bill_no", "=", "b.bill_no").andOn(
+        "t.branch_id",
+        "=",
+        "b.branch_id",
+      );
+    })
+    .leftJoin("members as m", function joinMember() {
+      this.on("m.id", "=", "t.member_id").andOn(
+        "m.branch_id",
+        "=",
+        "t.branch_id",
+      );
+    })
+    .leftJoin("users as u", "u.id", "b.created_by")
+    .where("b.branch_id", branchId)
+    .whereNull("b.deleted_at")
+    // Leaves out each bill's first record (the part payment made with the bill).
+    .whereExists(function hasEarlierRecord() {
+      this.select(db.raw("1"))
+        .from("subs_balance as f")
+        .whereRaw("f.branch_id = b.branch_id")
+        .whereRaw("f.bill_no = b.bill_no")
+        .whereNull("f.deleted_at")
+        .whereRaw("f.id < b.id");
+    })
+    .where("b.created_at", ">=", startDate)
+    .whereRaw("b.created_at < DATE_ADD(?, INTERVAL 1 DAY)", [endDate]);
+
+  if (search) {
+    const like = `%${search}%`;
+
+    base.where((query) => {
+      query
+        .whereRaw("CAST(b.bill_no AS CHAR) LIKE ?", [like])
+        .orWhere("m.member_Id", "like", like)
+        .orWhere("m.phone", "like", like);
+    });
+  }
+
+  const totalsRow = await base
+    .clone()
+    .select(
+      db.raw("COUNT(*) AS payment_count"),
+      db.raw("COALESCE(SUM(b.paid_amount), 0) AS total_received"),
+    )
+    .first();
+
+  // paid_to_date is everything paid on the bill up to and including this
+  // record; position counts the bill's records (1 = the first payment).
+  const sameBillUpToThis =
+    "p.branch_id = b.branch_id AND p.bill_no = b.bill_no AND p.deleted_at IS NULL";
+
+  const rows = await base
+    .clone()
+    .select(
+      "b.id as receipt_id",
+      "b.bill_no",
+      "b.paid_amount",
+      "b.created_at as paid_on",
+      "u.full_name as received_by",
+      "t.bill_date",
+      "t.subscription_no",
+      "t.total_minor",
+      "t.member_id",
+      "m.first_name",
+      "m.last_name",
+      "m.member_Id as member_code",
+      "m.phone",
+      "m.avatar_url",
+      db.raw(
+        `(SELECT COALESCE(SUM(p.paid_amount), 0) FROM subs_balance p WHERE ${sameBillUpToThis} AND p.id <= b.id) AS paid_to_date`,
+      ),
+      db.raw(
+        `(SELECT COUNT(*) FROM subs_balance p WHERE ${sameBillUpToThis} AND p.id <= b.id) AS position`,
+      ),
+      db.raw(
+        `(SELECT COUNT(*) FROM subs_balance p WHERE ${sameBillUpToThis}) AS record_count`,
+      ),
+    )
+    .orderBy("b.created_at", "desc")
+    .orderBy("b.id", "desc")
+    .limit(limit)
+    .offset((page - 1) * limit);
+
+  // Method and change of the payments, per bill, oldest status row first.
+  const statusByBill = new Map();
+
+  if (rows.length) {
+    const statusRows = await db("payments_status as ps")
+      .leftJoin("payments as p", "p.id", "ps.payment_id")
+      .where("ps.branch_id", branchId)
+      .whereIn("ps.subs_billno", [...new Set(rows.map((row) => String(row.bill_no)))])
+      .orderBy("ps.id")
+      .select(
+        "ps.subs_billno",
+        "ps.payments_status",
+        "ps.change",
+        "p.payment_name",
+      );
+
+    statusRows.forEach((row) => {
+      const key = String(row.subs_billno);
+
+      statusByBill.set(key, [...(statusByBill.get(key) ?? []), row]);
+    });
+  }
+
+  const payments = rows.map((row) => {
+    const totalMinor = Number(row.total_minor);
+    const paidMinor = Number(row.paid_amount);
+    const paidToDate = Number(row.paid_to_date);
+
+    // This is the n-th due payment of the bill (the bill's first record is not
+    // one), out of `dueCount`; the last `dueCount` status rows are theirs.
+    const receiptNo = Number(row.position) - 1;
+    const dueCount = Number(row.record_count) - 1;
+    const statuses = statusByBill.get(String(row.bill_no)) ?? [];
+    const status = statuses[statuses.length - dueCount + receiptNo - 1];
+
+    const balanceMinor = Math.max(totalMinor - paidToDate, 0);
+
+    return {
+      receipt_id: row.receipt_id,
+      receipt_no: receiptNo,
+      bill_no: row.bill_no,
+      bill_date: row.bill_date,
+      subscription_no: row.subscription_no ?? null,
+      member: {
+        id: row.member_id,
+        member_id: row.member_code ?? null,
+        name: [row.first_name, row.last_name].filter(Boolean).join(" ") || null,
+        phone: row.phone ?? null,
+        avatar_url: row.avatar_url ?? null,
+      },
+      total_minor: totalMinor,
+      due_before_minor: Math.max(totalMinor - (paidToDate - paidMinor), 0),
+      paid_minor: paidMinor,
+      change_minor: Number(status?.change ?? 0),
+      balance_minor: balanceMinor,
+      status: balanceMinor === 0 ? "completed" : "pending",
+      method: status?.payment_name ?? null,
+      paid_on: row.paid_on,
+      received_by: row.received_by ?? null,
+    };
+  });
+
+  return {
+    payments,
+    totals: {
+      payment_count: Number(totalsRow.payment_count),
+      total_received: Number(totalsRow.total_received),
+    },
+    total: Number(totalsRow.payment_count),
+  };
+};
+
 module.exports = {
   generateBillNo,
   getItems,
@@ -956,6 +1222,7 @@ module.exports = {
   findSummaryBill,
   findSubscriptionList,
   findDueBillList,
+  findDuePaymentList,
   findBillDetails,
   payDue,
 };

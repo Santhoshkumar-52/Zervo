@@ -54,14 +54,20 @@ export const addSubscriptionItem = (payload) =>
 export const completeSubscriptionPayment = (payload) =>
   api.post("/subscription/payment", payload).then((res) => res.data.data);
 
-// GET /api/subscription/summary?bill_no=
+// GET /api/subscription/summary?bill_no=&receipt_id=
 // Everything the summary bill page shows for one bill of the user's branch.
+// With receiptId (a due receipt from /subscription/due/payments) `payment` is
+// the payment as it stood at that receipt: { status, method, paid_on,
+// paid_price, change, balance, due_before, receipt_no }. 404 when the receipt
+// is not one of the bill's.
 // Response: { success, message, data: { branch, summary, member, items,
 //             payment, issued_by } } - see SummaryBill.jsx for the full shape.
 // 404 when the bill is not found in this branch.
-export const getSummaryBill = (billNo) =>
+export const getSummaryBill = (billNo, receiptId) =>
   api
-    .get("/subscription/summary", { params: { bill_no: billNo } })
+    .get("/subscription/summary", {
+      params: { bill_no: billNo, receipt_id: receiptId ?? undefined },
+    })
     .then((res) => res.data.data);
 
 // GET /api/subscription/list
@@ -146,3 +152,38 @@ export const getBillDetails = (billNo) =>
 // due amount, is cancelled or was written off.
 export const payDueAmount = (payload) =>
   api.post("/subscription/due/pay", payload).then((res) => res.data.data);
+
+
+// GET /api/subscription/due/payments
+// params: { start_date, end_date, page, limit, search }
+//   start_date, end_date  YYYY-MM-DD, both days included (required); they
+//   filter on the day the payment was received, not the bill date
+//   page (default 1), limit (default 10, max 100), search (bill no, member ID
+//   or phone)
+// The payments made against due amounts, one receipt per row, newest first.
+// Only roles 1, 2 and 3 may call it (403 otherwise). The branch comes from the
+// logged-in user.
+// Response: { success, message, data: { payments, totals, pagination } }
+//   payments:   [{ receipt_id, receipt_no, bill_no, bill_date, subscription_no,
+//                  member: { id, member_id, name, phone, avatar_url },
+//                  total_minor, due_before_minor, paid_minor, change_minor,
+//                  balance_minor, status, method, paid_on, received_by,
+//                  bill_url }]
+//               receipt_no counts the bill's due payments (1, 2, ...);
+//               balance_minor is what the bill still owed right after it
+//               (due 1500: pays 400 -> 1100, then pays 600 -> 500).
+//   totals:     { payment_count, total_received }
+//               (minor units, every matching receipt - not just this page)
+//   pagination: { page, limit, total, totalPages, hasNextPage, hasPreviousPage }
+export const getDuePaymentList = (params = {}) => {
+  // Drop empty values so we never send ?search=
+  const cleanParams = Object.fromEntries(
+    Object.entries(params).filter(
+      ([, value]) => value !== undefined && value !== null && value !== "",
+    ),
+  );
+
+  return api
+    .get("/subscription/due/payments", { params: cleanParams })
+    .then((res) => res.data.data);
+};

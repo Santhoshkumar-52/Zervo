@@ -16,10 +16,13 @@ function Row({ label, children }) {
 // Rows that don't apply (no discount, no tax) are left out.
 // Under the total: what was paid, the change handed back (cash only) and, in
 // red, the balance still owed. `payment` is { paid_price, change, balance }.
+// A due receipt's bill also has due_before (what was owed just before that
+// payment) and receipt_no, so the figures read as they did at that moment.
 function PriceSummary({ summary = {}, payment = {}, status, money, className = "" }) {
   const paid = Number(payment.paid_price) || 0;
   const change = Number(payment.change) || 0;
   const balance = Number(payment.balance) || 0;
+  const dueBefore = payment.due_before == null ? null : Number(payment.due_before);
 
   // "Total paid" would be wrong while something is still owed.
   const totalLabel = balance > 0 ? "Total" : getPaymentStatus(status).totalLabel;
@@ -71,7 +74,15 @@ function PriceSummary({ summary = {}, payment = {}, status, money, className = "
           </dd>
         </div>
 
-        {paid > 0 && <Row label="Paid">{money(paid)}</Row>}
+        {dueBefore !== null && (
+          <Row label="Due before this payment">{money(dueBefore)}</Row>
+        )}
+
+        {paid > 0 && (
+          <Row label={payment.receipt_no ? `Paid (receipt #${payment.receipt_no})` : "Paid"}>
+            {money(paid)}
+          </Row>
+        )}
 
         {change > 0 && (
           <div className="flex items-baseline justify-between gap-4 rounded-md border border-zinc-300 bg-white px-4 py-3">

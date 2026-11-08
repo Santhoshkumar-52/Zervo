@@ -108,6 +108,11 @@ const reportNavigation = [
     url: "/reports/balance",
     icon: Wallet,
   },
+  {
+    title: "Due Receipt",
+    url: "/reports/due_receipt",
+    icon: ReceiptText,
+  },
 ];
 
 const settingsNavigation = [

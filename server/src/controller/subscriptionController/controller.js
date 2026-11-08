@@ -23,6 +23,7 @@ const {
   findSummaryBill,
   findSubscriptionList,
   findDueBillList,
+  findDuePaymentList,
   findBillDetails,
   payDue,
 } = require("./billStore");
@@ -91,6 +92,17 @@ const addBillUrls = async (branchId, bills) => {
   return bills.map((bill) => ({
     ...bill,
     bill_url: buildBillUrl(subbillUrl, bill.bill_no),
+  }));
+};
+
+// Adds bill_url to every due receipt. The link carries the receipt id, so the
+// bill opens with the payment as it stood at that receipt.
+const addReceiptUrls = async (branchId, payments) => {
+  const subbillUrl = await getSubbillUrl(branchId);
+
+  return payments.map((payment) => ({
+    ...payment,
+    bill_url: buildBillUrl(subbillUrl, payment.bill_no, payment.receipt_id),
   }));
 };
 
@@ -428,9 +440,13 @@ const payDueAmount = async (req, res) => {
   }
 };
 
-// GET /api/subscription/summary?bill_no=
+// GET /api/subscription/summary?bill_no=&receipt_id=
 // The full summary bill (branch, totals, member, items, payment) for one bill
 // of the logged-in user's branch. 404 when the bill is not in this branch.
+// With receipt_id (a due receipt, see /subscription/due/payments) the payment
+// is the one at that moment: what was paid in that receipt, the due before it
+// and the balance after it, instead of the bill's latest state. 404 when the
+// receipt is not one of this bill's.
 const getSummaryBill = async (req, res) => {
   try {
     const billNo = Number(req.query.bill_no);
@@ -441,7 +457,16 @@ const getSummaryBill = async (req, res) => {
       ]);
     }
 
-    const bill = await findSummaryBill(req.user.branchId, billNo);
+    const receiptId =
+      req.query.receipt_id === undefined ? null : Number(req.query.receipt_id);
+
+    if (receiptId !== null && (!Number.isInteger(receiptId) || receiptId <= 0)) {
+      return errorResponse(res, "Validation failed", 400, [
+        { field: "receipt_id", message: "A valid receipt id is required" },
+      ]);
+    }
+
+    const bill = await findSummaryBill(req.user.branchId, billNo, receiptId);
 
     if (!bill) return errorResponse(res, "Bill not found", 404);
 
@@ -572,6 +597,74 @@ const getDueBillList = async (req, res) => {
   }
 };
 
+// GET /api/subscription/due/payments?start_date&end_date&page&limit&search
+// The payments made against due amounts, one row per receipt, newest first.
+// Same filters as /subscription/list: start_date and end_date (YYYY-MM-DD, both
+// days included; body or query string) plus page, limit and search (bill no,
+// member_Id or phone). The dates filter on the day the payment was received,
+// not the bill date. Each receipt shows the bill's balance as it was after
+// that payment, so a due of 1500 paid as 400 then 600 reads 1100, then 500.
+// Every receipt also carries bill_url (see getBillUrl). Roles 1, 2 and 3 only.
+const getDuePaymentList = async (req, res) => {
+  try {
+    const parsed = listSubscriptionsSchema.safeParse({
+      start_date: req.body?.start_date ?? req.query.start_date,
+      end_date: req.body?.end_date ?? req.query.end_date,
+    });
+
+    if (!parsed.success) {
+      return errorResponse(
+        res,
+        "Validation failed",
+        400,
+        formatZodError(parsed.error),
+      );
+    }
+
+    const { branchId } = req.user;
+
+    const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
+
+    const limit = Math.min(
+      Math.max(Number.parseInt(req.query.limit, 10) || 10, 1),
+      100,
+    );
+
+    const search = req.query.search?.trim() || "";
+
+    const { payments, totals, total } = await findDuePaymentList(branchId, {
+      startDate: parsed.data.start_date,
+      endDate: parsed.data.end_date,
+      search,
+      page,
+      limit,
+    });
+
+    const totalPages = Math.ceil(total / limit);
+
+    return successResponse(
+      res,
+      {
+        payments: await addReceiptUrls(branchId, payments),
+        totals,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        },
+      },
+      "Due payments fetched successfully",
+    );
+  } catch (error) {
+    console.error("Error fetching due payments:", error);
+
+    return errorResponse(res, "Internal server error", 500);
+  }
+};
+
 // GET /api/subscription/details?bill_no=
 // One bill of the logged-in user's branch with its transactions so far: the
 // summary bill (branch, summary, member, items, payment, issued_by) plus
@@ -606,6 +699,7 @@ module.exports = {
   getSummaryBill,
   getSubscriptionList,
   getDueBillList,
+  getDuePaymentList,
   getBillDetails,
   payDueAmount,
 };
