@@ -8,6 +8,7 @@ import { z } from "zod";
 import { getBranchList, updateBranch } from "@/api/branch/branchApi";
 import Field from "@/components/additonal/Field";
 import { BRANCH_SWITCH_GROUP_ID } from "@/components/additonal/BranchFilter";
+import ImageUploadButton from "@/components/additonal/ImageUploadButton";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -135,7 +136,7 @@ function Section({ title, description, children }) {
   );
 }
 
-// Small preview next to an image URL input. Remount it (key={src}) when the
+// Small preview of an image URL. Remount it (key={src}) when the
 // URL changes so a previous load error does not stick.
 function ImagePreview({ src, className = "" }) {
   const [failed, setFailed] = useState(false);
@@ -160,6 +161,49 @@ function ImagePreview({ src, className = "" }) {
   );
 }
 
+// Preview + upload button for one branch image (logo / attendance background).
+// `onUploaded` receives the new Cloudinary URL; it is saved with the form.
+function BrandImageField({
+  label,
+  value,
+  error,
+  previewClassName,
+  disabled,
+  onUploaded,
+  onUploadingChange,
+}) {
+  return (
+    <div className="space-y-2">
+      <span className="text-sm font-medium">{label}</span>
+
+      <div className="flex items-center gap-3">
+        <ImagePreview key={value} src={value} className={previewClassName} />
+
+        <div className="flex min-w-0 flex-col items-start gap-1">
+          <ImageUploadButton
+            folder="branches"
+            disabled={disabled}
+            onUploaded={onUploaded}
+            onUploadingChange={onUploadingChange}
+            successMessage={`${label} uploaded`}
+          >
+            {value ? "Change image" : "Upload image"}
+          </ImageUploadButton>
+
+          <span className="text-xs text-muted-foreground">
+            JPG, PNG, WEBP or GIF, up to 5 MB.
+          </span>
+        </div>
+      </div>
+
+      {error && (
+        <p className="text-xs text-destructive" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
 // Card-style radio options: the whole card is clickable.
 function OptionRadioGroup({ label, value, onChange, options, disabled }) {
   return (
@@ -195,7 +239,8 @@ function OptionRadioGroup({ label, value, onChange, options, disabled }) {
  * can list or edit branches, so everyone else sees a short notice.
  *
  * Inputs follow the column type:
- *   name, code, phone, logo, background  text / tel / url inputs
+ *   name, code, phone                    text / tel inputs
+ *   logo, background                     image upload (Cloudinary)
  *   address                              textarea
  *   currency                             dropdown
  *   bill page, receipt page (enums)      radio cards
@@ -256,6 +301,7 @@ function BranchSettings() {
     handleSubmit,
     reset,
     watch,
+    setValue,
     formState: { errors, isDirty },
   } = useForm({
     resolver: zodResolver(branchSchema),
@@ -270,6 +316,16 @@ function BranchSettings() {
 
   const logo = watch("logo");
   const attendBackground = watch("attend_background");
+
+  // An uploaded image only changes the form; "Save changes" writes it.
+  const [uploading, setUploading] = useState({});
+  const isUploading = Object.values(uploading).some(Boolean);
+
+  const setImage = (field, url) =>
+    setValue(field, url, { shouldDirty: true, shouldValidate: true });
+
+  const trackUploading = (field) => (value) =>
+    setUploading((current) => ({ ...current, [field]: value }));
 
   const mutation = useMutation({
     mutationFn: ({ id, values }) => updateBranch(id, values),
@@ -472,61 +528,30 @@ function BranchSettings() {
 
                 <Section
                   title="Branding"
-                  description="Image links used on bills and the attendance screen."
+                  description="Images used on bills and the attendance screen."
                 >
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="flex items-start gap-3">
-                      <ImagePreview
-                        key={logo}
-                        src={logo}
-                        className="mt-6 size-10"
-                      />
+                    <BrandImageField
+                      label="Logo"
+                      value={logo}
+                      error={errors.logo?.message}
+                      previewClassName="size-16"
+                      disabled={isSaving}
+                      onUploaded={(url) => setImage("logo", url)}
+                      onUploadingChange={trackUploading("logo")}
+                    />
 
-                      <Field
-                        className="min-w-0 flex-1"
-                        label="Logo URL"
-                        htmlFor="branch-logo"
-                        required
-                        error={errors.logo?.message}
-                      >
-                        <Input
-                          id="branch-logo"
-                          type="url"
-                          inputMode="url"
-                          aria-required="true"
-                          aria-invalid={Boolean(errors.logo)}
-                          {...register("logo")}
-                        />
-                      </Field>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <ImagePreview
-                        key={attendBackground}
-                        src={attendBackground}
-                        className="mt-6 h-10 w-16"
-                      />
-
-                      <Field
-                        className="min-w-0 flex-1"
-                        label="Attendance background URL"
-                        htmlFor="branch-attend-background"
-                        required
-                        error={errors.attend_background?.message}
-                      >
-                        <Input
-                          id="branch-attend-background"
-                          type="url"
-                          inputMode="url"
-                          aria-required="true"
-                          aria-invalid={Boolean(errors.attend_background)}
-                          {...register("attend_background")}
-                        />
-                      </Field>
-                    </div>
+                    <BrandImageField
+                      label="Attendance background"
+                      value={attendBackground}
+                      error={errors.attend_background?.message}
+                      previewClassName="h-16 w-28"
+                      disabled={isSaving}
+                      onUploaded={(url) => setImage("attend_background", url)}
+                      onUploadingChange={trackUploading("attend_background")}
+                    />
                   </div>
                 </Section>
-
                 <Separator />
 
                 <Section
@@ -598,13 +623,13 @@ function BranchSettings() {
                   <Button
                     type="button"
                     variant="outline"
-                    disabled={!isDirty || isSaving}
+                    disabled={!isDirty || isSaving || isUploading}
                     onClick={() => reset(toFormValues(selected))}
                   >
                     Reset
                   </Button>
 
-                  <Button type="submit" disabled={!isDirty || isSaving}>
+                  <Button type="submit" disabled={!isDirty || isSaving || isUploading}>
                     {isSaving ? "Saving..." : "Save changes"}
                   </Button>
                 </div>

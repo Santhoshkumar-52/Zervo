@@ -306,6 +306,7 @@ const createMember = async (req, res) => {
             gender: data.gender ?? null,
             joined_on: data.joined_on,
             assigned_trainer_id: data.assigned_trainer_id ?? null,
+            avatar_url: data.avatar_url ?? null,
             is_active: data.is_active,
             created_by: userId,
             updated_by: userId,

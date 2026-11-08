@@ -5,8 +5,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
 import { getGroups } from "@/api/group/groupApi";
+import AvatarUploader from "@/components/additonal/AvatarUploader";
 import Field from "@/components/additonal/Field";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -90,6 +90,8 @@ const baseFields = {
   // Optional: null until one is chosen.
   gender: z.enum(["male", "female", "others"]).nullable(),
   is_active: z.boolean(),
+  // Cloudinary URL of the profile photo, or null.
+  avatar_url: z.string().nullable(),
 };
 
 // Create: staff ID and a password are required.
@@ -114,14 +116,6 @@ const editSchema = z.object({
     }),
 });
 
-const getInitials = (name = "") =>
-  name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0].toUpperCase())
-    .join("");
-
 // With no staff member (create mode) the form starts empty and active.
 const toFormValues = (staff) => ({
   user_id: staff?.user_id ?? "",
@@ -132,6 +126,7 @@ const toFormValues = (staff) => ({
   group_id: staff?.group_id ?? DEFAULT_GROUP_ID,
   gender: staff?.gender ?? null,
   is_active: staff ? Boolean(staff.is_active) : true,
+  avatar_url: staff?.avatar_url ?? null,
 });
 
 /**
@@ -170,11 +165,18 @@ function EditStaffDialog({
     control,
     handleSubmit,
     reset,
+    watch,
+    setValue,
     formState: { errors, isDirty },
   } = useForm({
     resolver: zodResolver(isCreate ? createSchema : editSchema),
     defaultValues: toFormValues(staff),
   });
+
+  // The uploaded photo URL, and whether a photo upload is still running.
+  const avatarUrl = watch("avatar_url");
+  const fullName = watch("full_name");
+  const [isUploading, setIsUploading] = useState(false);
 
   // The groups (roles) are fetched when the role dropdown is clicked open,
   // once per time the dialog opens; the cache keeps them for a minute.
@@ -247,6 +249,7 @@ function EditStaffDialog({
       group_id: values.group_id,
       gender: values.gender ?? null,
       is_active: values.is_active,
+      avatar_url: values.avatar_url || null,
     };
 
     if (isCreate) {
@@ -283,27 +286,16 @@ function EditStaffDialog({
           onSubmit={handleSubmit(submit)}
           className="flex flex-col gap-4"
         >
-          {/* Avatar: changing the photo is disabled for now */}
-          {!isCreate && (
-            <div className="flex items-center gap-3">
-              <Avatar size="lg">
-                <AvatarImage
-                  src={staff?.avatar_url ?? undefined}
-                  alt={staff?.full_name}
-                />
-                <AvatarFallback>{getInitials(staff?.full_name)}</AvatarFallback>
-              </Avatar>
-
-              <div className="flex flex-col items-start gap-1">
-                <Button type="button" variant="outline" size="sm" disabled>
-                  Change photo
-                </Button>
-                <span className="text-xs text-muted-foreground">
-                  Photo upload is coming soon.
-                </span>
-              </div>
-            </div>
-          )}
+          {/* Profile photo: uploaded to Cloudinary, saved with the form */}
+          <AvatarUploader
+            value={avatarUrl}
+            name={fullName}
+            disabled={isLoading}
+            onUploadingChange={setIsUploading}
+            onChange={(url) =>
+              setValue("avatar_url", url, { shouldDirty: true })
+            }
+          />
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field
@@ -488,7 +480,9 @@ function EditStaffDialog({
             </Button>
             <Button
               type="submit"
-              disabled={isLoading || isStaffLoading || (!isCreate && !isDirty)}
+              disabled={
+                isLoading || isStaffLoading || isUploading || (!isCreate && !isDirty)
+              }
             >
               {isLoading
                 ? isCreate

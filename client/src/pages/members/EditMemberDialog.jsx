@@ -1,11 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import AsyncCombobox from "@/components/additonal/AsyncCombobox";
+import AvatarUploader from "@/components/additonal/AvatarUploader";
 import DatePicker from "@/components/additonal/DatePicker";
 import Field from "@/components/additonal/Field";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -57,15 +57,9 @@ const memberSchema = z.object({
     .object({ id: z.number(), full_name: z.string() })
     .nullable(),
   is_active: z.boolean(),
+  // Cloudinary URL of the photo, or null.
+  avatar_url: z.string().nullable(),
 });
-
-const getInitials = (name = "") =>
-  name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0].toUpperCase())
-    .join("");
 
 // Today as YYYY-MM-DD in the user's local time (default joined date).
 const today = () => {
@@ -92,6 +86,7 @@ const toFormValues = (member) => ({
       }
     : null,
   is_active: member ? Boolean(member.is_active) : true,
+  avatar_url: member?.avatar_url ?? null,
 });
 
 // Label + control + error message.
@@ -130,11 +125,17 @@ function EditMemberDialog({
     control,
     handleSubmit,
     reset,
+    watch,
+    setValue,
     formState: { errors, isDirty },
   } = useForm({
     resolver: zodResolver(memberSchema),
     defaultValues: toFormValues(member),
   });
+
+  // The uploaded photo URL, and whether a photo upload is still running.
+  const avatarUrl = watch("avatar_url");
+  const [isUploading, setIsUploading] = useState(false);
 
   // Load the selected member into the form each time the dialog opens.
   useEffect(() => {
@@ -152,6 +153,7 @@ function EditMemberDialog({
       assigned_trainer_id: values.assigned_trainer?.id ?? null,
 
       is_active: values.is_active,
+      avatar_url: values.avatar_url || null,
     };
 
     try {
@@ -183,27 +185,16 @@ function EditMemberDialog({
           onSubmit={handleSubmit(submit)}
           className="flex flex-col gap-4"
         >
-          {/* Avatar: changing the photo is disabled for now */}
-          {!isCreate && (
-          <div className="flex items-center gap-3">
-            <Avatar size="lg">
-              <AvatarImage
-                src={member?.photo_url ?? undefined}
-                alt={fullName}
-              />
-              <AvatarFallback>{getInitials(fullName)}</AvatarFallback>
-            </Avatar>
-
-            <div className="flex flex-col items-start gap-1">
-              <Button type="button" variant="outline" size="sm" disabled>
-                Change photo
-              </Button>
-              <span className="text-xs text-muted-foreground">
-                Photo upload is coming soon.
-              </span>
-            </div>
-          </div>
-          )}
+          {/* Photo: uploaded to Cloudinary, saved with the form */}
+          <AvatarUploader
+            value={avatarUrl}
+            name={[watch("first_name"), watch("last_name")].filter(Boolean).join(" ")}
+            disabled={isLoading}
+            onUploadingChange={setIsUploading}
+            onChange={(url) =>
+              setValue("avatar_url", url, { shouldDirty: true })
+            }
+          />
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field
@@ -362,7 +353,9 @@ function EditMemberDialog({
             </Button>
             <Button
               type="submit"
-              disabled={isLoading || isMemberLoading || (!isCreate && !isDirty)}
+              disabled={
+                isLoading || isMemberLoading || isUploading || (!isCreate && !isDirty)
+              }
             >
               {isLoading
                 ? isCreate

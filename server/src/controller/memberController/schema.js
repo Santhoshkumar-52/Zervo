@@ -28,6 +28,9 @@ const joinedOn = z
 
 const trainerId = z.number().int().positive().nullable();
 
+// Cloudinary URL from POST /api/upload/image. Optional: null clears the photo.
+const avatarUrl = z.string().trim().max(500).nullable();
+
 // Optional: null clears it. Same values as the members.gender column.
 const GENDERS = ["male", "female", "others"];
 const gender = z.enum(GENDERS).nullable();
@@ -41,6 +44,7 @@ const createMemberSchema = z.object({
   gender: gender.optional(),
   joined_on: joinedOn,
   assigned_trainer_id: trainerId.optional(),
+  avatar_url: avatarUrl.optional(),
   is_active: z.boolean().default(true),
 });
 
@@ -54,6 +58,7 @@ const updateMemberSchema = z
     gender,
     joined_on: joinedOn,
     assigned_trainer_id: trainerId,
+    avatar_url: avatarUrl,
     is_active: z.boolean(),
   })
   .partial()
