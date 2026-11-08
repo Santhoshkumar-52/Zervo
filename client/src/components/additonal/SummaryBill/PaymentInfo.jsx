@@ -1,5 +1,6 @@
 import DetailList from "./DetailList";
-import { SECTION_PADDING, formatDate, getPaymentStatus } from "./billHelpers";
+import { LABEL, PAD } from "./billStyles";
+import { formatDate, getPaymentStatus } from "./billHelpers";
 
 // Payment method (payments.payment_name) and outcome (payments_status).
 // payment: { method, paid_on }. The note under the details tells the reader
@@ -11,14 +12,14 @@ function PaymentInfo({ status, payment = {}, className = "" }) {
   return (
     <section
       aria-labelledby="bill-payment-title"
-      className={`${SECTION_PADDING} ${className}`}
+      className={`${PAD} ${className}`}
     >
-      <h3 id="bill-payment-title" className="text-sm font-semibold">
+      <h3 id="bill-payment-title" className={LABEL}>
         Payment
       </h3>
 
       <DetailList
-        className="mt-4"
+        className="mt-3"
         rows={[
           {
             label: "Method",
@@ -31,7 +32,7 @@ function PaymentInfo({ status, payment = {}, className = "" }) {
         ]}
       />
 
-      <p className="mt-4 text-sm text-muted-foreground">{note}</p>
+      <p className="mt-3 text-sm text-zinc-700">{note}</p>
     </section>
   );
 }

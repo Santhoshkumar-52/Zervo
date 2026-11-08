@@ -1,12 +1,13 @@
 import { DISCOUNT_TYPE } from "@/utils/billing";
 
-import { SECTION_PADDING, getPaymentStatus } from "./billHelpers";
+import { LABEL, PAD } from "./billStyles";
+import { getPaymentStatus } from "./billHelpers";
 
 function Row({ label, children }) {
   return (
     <div className="flex items-baseline justify-between gap-4 text-sm">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="font-medium tabular-nums">{children}</dd>
+      <dt className="text-zinc-600">{label}</dt>
+      <dd className="font-medium text-zinc-900 tabular-nums">{children}</dd>
     </div>
   );
 }
@@ -21,8 +22,7 @@ function PriceSummary({ summary = {}, payment = {}, status, money, className = "
   const balance = Number(payment.balance) || 0;
 
   // "Total paid" would be wrong while something is still owed.
-  const totalLabel =
-    balance > 0 ? "Total" : getPaymentStatus(status).totalLabel;
+  const totalLabel = balance > 0 ? "Total" : getPaymentStatus(status).totalLabel;
 
   const discount = Number(summary.discount_price) || 0;
   const tax = Number(summary.tax_amount) || 0;
@@ -35,13 +35,13 @@ function PriceSummary({ summary = {}, payment = {}, status, money, className = "
   return (
     <section
       aria-labelledby="bill-summary-title"
-      className={`${SECTION_PADDING} ${className}`}
+      className={`${PAD} ${className}`}
     >
-      <h3 id="bill-summary-title" className="text-sm font-semibold">
+      <h3 id="bill-summary-title" className={LABEL}>
         Summary
       </h3>
 
-      <dl className="mt-4 space-y-2.5">
+      <dl className="mt-3 space-y-2.5">
         <Row label="Subtotal">{money(summary.base_price)}</Row>
 
         {discount > 0 && (
@@ -58,11 +58,13 @@ function PriceSummary({ summary = {}, payment = {}, status, money, className = "
           <Row label={`Tax (${taxPercent}%)`}>{money(tax)}</Row>
         )}
 
-        <div className="flex items-baseline justify-between gap-4 border-t pt-4">
-          <dt className="font-medium">{totalLabel}</dt>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-y-2 border-zinc-900 py-3">
+          <dt className="text-sm font-bold tracking-wide text-zinc-900 uppercase">
+            {totalLabel}
+          </dt>
           <dd
-            className={`text-3xl font-semibold tracking-tight tabular-nums ${
-              status === "cancelled" ? "text-muted-foreground line-through" : ""
+            className={`text-3xl font-bold tracking-tight tabular-nums sm:text-4xl lg:text-3xl ${
+              status === "cancelled" ? "text-zinc-500 line-through" : "text-zinc-900"
             }`}
           >
             {money(summary.total_price)}
@@ -72,19 +74,19 @@ function PriceSummary({ summary = {}, payment = {}, status, money, className = "
         {paid > 0 && <Row label="Paid">{money(paid)}</Row>}
 
         {change > 0 && (
-          <div className="flex items-baseline justify-between gap-4 rounded-lg bg-muted px-4 py-3">
-            <dt className="text-sm font-medium">Change returned</dt>
-            <dd className="text-xl font-semibold tabular-nums">{money(change)}</dd>
+          <div className="flex items-baseline justify-between gap-4 rounded-md border border-zinc-300 bg-white px-4 py-3">
+            <dt className="text-sm font-medium text-zinc-700">Change returned</dt>
+            <dd className="text-lg font-bold text-zinc-900 tabular-nums">{money(change)}</dd>
           </div>
         )}
 
         {balance > 0 && (
           <div
             role="alert"
-            className="flex items-baseline justify-between gap-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-destructive"
+            className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 rounded-md border-2 border-red-600 bg-red-50 px-4 py-3 text-red-700 [print-color-adjust:exact]"
           >
-            <dt className="text-sm font-semibold">Balance due</dt>
-            <dd className="text-xl font-bold tabular-nums">{money(balance)}</dd>
+            <dt className="text-sm font-bold tracking-wide uppercase">Balance due</dt>
+            <dd className="text-2xl font-bold tabular-nums">{money(balance)}</dd>
           </div>
         )}
       </dl>

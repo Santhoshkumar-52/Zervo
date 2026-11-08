@@ -1,5 +1,5 @@
 import DetailList from "./DetailList";
-import { SECTION_PADDING } from "./billHelpers";
+import { LABEL, PAD } from "./billStyles";
 
 // Reference details for the subscription (subs_summ) and the staff user who
 // issued it. Members use these to quote the bill; staff use them to look it up.
@@ -8,16 +8,16 @@ function SubscriptionDetails({ summary = {}, branch = {}, issuedBy, className = 
   return (
     <section
       aria-labelledby="bill-subscription-title"
-      className={`${SECTION_PADDING} ${className}`}
+      className={`${PAD} ${className}`}
     >
-      <h3 id="bill-subscription-title" className="text-sm font-semibold">
+      <h3 id="bill-subscription-title" className={LABEL}>
         Subscription
       </h3>
 
       <DetailList
-        className="mt-4"
+        className="mt-3"
         rows={[
-          { label: "Subscription number", value: summary.subscription_no },
+          { label: "Subscription no.", value: summary.subscription_no },
           { label: "Branch code", value: branch.code },
           { label: "Issued by", value: issuedBy },
         ]}

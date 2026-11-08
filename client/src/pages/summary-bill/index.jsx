@@ -1,26 +1,49 @@
-﻿import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, FileQuestion, ReceiptText, ServerCrash } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { getSummaryBill } from "@/api/subscription/subscriptionApi";
 import SummaryBill from "@/components/additonal/SummaryBill";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { EmptyState } from "@/pages/public/EmptyState";
 
 // /summary-bill?id=1042 - `id` is the bill number (subs_summ.bill_no).
 // Kept outside AppLayout so the bill gets the whole page and prints cleanly.
+//
+// This page does not use the app theme. Colours are fixed (zinc, with the bill's
+// own status colours) so the bill looks the same in light and dark mode.
 const parseBillNo = (value) => {
   const number = Number(value);
   return Number.isInteger(number) && number > 0 ? number : null;
 };
 
-function BillSkeleton() {
+const BUTTON =
+  "inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900";
+const BUTTON_OUTLINE = `${BUTTON} border border-zinc-400 bg-white text-zinc-900 hover:bg-zinc-100`;
+const BUTTON_SOLID = `${BUTTON} bg-zinc-900 text-white hover:bg-zinc-700`;
+
+// Same width as the bill: a portrait column on phones, wide on large screens.
+const SHEET_WIDTH = "mx-auto w-full max-w-2xl lg:max-w-6xl";
+
+function Notice({ icon: Icon, title, description, children }) {
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-4" aria-busy="true" aria-label="Loading bill">
-      <Skeleton className="h-40 rounded-2xl" />
-      <Skeleton className="h-32 rounded-2xl" />
-      <Skeleton className="h-64 rounded-2xl" />
+    <div className="mx-auto flex w-full max-w-md flex-col items-center rounded-lg border border-zinc-300 bg-white px-6 py-10 text-center shadow-sm">
+      <div className="flex size-14 items-center justify-center rounded-full bg-zinc-100">
+        <Icon aria-hidden="true" className="size-7 text-zinc-700" />
+      </div>
+      <h2 className="mt-4 text-lg font-bold text-zinc-900">{title}</h2>
+      <p className="mt-1.5 text-sm text-zinc-600">{description}</p>
+      {children && <div className="mt-6">{children}</div>}
+    </div>
+  );
+}
+
+function BillSkeleton() {
+  const bar = "animate-pulse rounded-md bg-zinc-300";
+
+  return (
+    <div className={`${SHEET_WIDTH} space-y-3`} aria-busy="true" aria-label="Loading bill">
+      <div className={`${bar} h-32`} />
+      <div className={`${bar} h-40`} />
+      <div className={`${bar} h-64`} />
     </div>
   );
 }
@@ -38,56 +61,62 @@ function SummaryBillPage() {
     retry: (count, err) => err?.response?.status !== 404 && count < 1,
   });
 
+  const goToSubscriptions = (
+    <button type="button" className={BUTTON_SOLID} onClick={() => navigate("/subscriptions")}>
+      Go to subscriptions
+    </button>
+  );
+
   let content;
 
   if (billNo === null) {
     content = (
-      <EmptyState
+      <Notice
         icon={ReceiptText}
         title="No bill selected"
         description="Open a bill with its number in the link, for example /summary-bill?id=1042."
-        button
-        redirect="/subscriptions"
-        buttonText="Go to subscriptions"
-      />
+      >
+        {goToSubscriptions}
+      </Notice>
     );
   } else if (isLoading) {
     content = <BillSkeleton />;
   } else if (isError && error?.response?.status === 404) {
     content = (
-      <EmptyState
+      <Notice
         icon={FileQuestion}
         title={`Bill #${billNo} not found`}
         description="Check the bill number, or open the bill from the subscriptions page."
-        button
-        redirect="/subscriptions"
-        buttonText="Go to subscriptions"
-      />
+      >
+        {goToSubscriptions}
+      </Notice>
     );
   } else if (isError) {
     content = (
-      <div className="flex flex-col items-center">
-        <EmptyState
-          icon={ServerCrash}
-          title="Couldn't load this bill"
-          description={error?.response?.data?.message || "Something went wrong on our side. Try again in a moment."}
-        />
-        <Button variant="outline" onClick={() => refetch()}>
+      <Notice
+        icon={ServerCrash}
+        title="Couldn't load this bill"
+        description={
+          error?.response?.data?.message ||
+          "Something went wrong on our side. Try again in a moment."
+        }
+      >
+        <button type="button" className={BUTTON_OUTLINE} onClick={() => refetch()}>
           Try again
-        </Button>
-      </div>
+        </button>
+      </Notice>
     );
   } else {
     content = <SummaryBill bill={bill} />;
   }
 
   return (
-    <div className="min-h-screen bg-muted/30 px-4 py-6 sm:py-10 print:bg-transparent print:p-0">
-      <div className="mx-auto mb-4 flex w-full max-w-4xl print:hidden">
-        <Button variant="ghost" onClick={() => navigate(-1)}>
-          <ArrowLeft data-icon="inline-start" />
+    <div className="min-h-screen bg-zinc-200 px-3 py-4 text-zinc-900 sm:px-6 sm:py-8 print:min-h-0 print:bg-white print:p-0">
+      <div className={`${SHEET_WIDTH} mb-3 flex print:hidden`}>
+        <button type="button" className={BUTTON_OUTLINE} onClick={() => navigate(-1)}>
+          <ArrowLeft aria-hidden="true" className="size-4" />
           Back
-        </Button>
+        </button>
       </div>
 
       {content}

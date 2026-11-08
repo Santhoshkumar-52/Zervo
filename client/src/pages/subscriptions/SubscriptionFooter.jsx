@@ -19,6 +19,10 @@ const toMinor = (text) => Math.round(Number(text) * 100);
 const isCashMethod = (method) =>
   method?.label?.trim().toLowerCase() === "cash";
 
+// The summary bill page reads the bill number from `?id=`.
+const getSummaryBillUrl = (billNo) =>
+  `/summary-bill?id=${encodeURIComponent(billNo)}`;
+
 // Checks run on Pay. The amount is typed in major units (e.g. 1593.50) and
 // compared in minor units. Only cash may be more than the grand total (the
 // customer hands over a larger note and gets change back).
@@ -62,6 +66,10 @@ const createPaySchema = ({ grandTotalMinor, isCash }) =>
 // The paid price starts as the grand total and can be changed. When Pay is
 // clicked it is validated (zod); only if it passes does
 // `onPay({ paidPriceMinor })` run. Pay is disabled while `isPaying`.
+//
+// `onPay` should return the payment result (with `bill_no`) when the payment
+// is saved, and nothing when it fails. After a saved payment the bill opens in
+// a new tab at /summary-bill?id=<bill_no>.
 function SubscriptionFooter({
   itemCount,
   grandTotalMinor,
@@ -93,7 +101,7 @@ function SubscriptionFooter({
     setError("");
   };
 
-  const handlePay = () => {
+  const handlePay = async () => {
     const result = createPaySchema({
       grandTotalMinor,
       isCash: isCashMethod(selectedMethod),
@@ -105,7 +113,30 @@ function SubscriptionFooter({
     }
 
     setError("");
-    onPay?.({ paidPriceMinor: toMinor(result.data.paid_price) });
+
+    // Open the tab now, while the click is still fresh, so the browser's popup
+    // blocker lets it through. It is pointed at the bill once the payment is
+    // saved, and closed again if the payment fails.
+    const billTab = window.open("about:blank", "_blank");
+
+    let payment;
+
+    try {
+      payment = await onPay?.({ paidPriceMinor: toMinor(result.data.paid_price) });
+    } catch {
+      payment = null;
+    }
+
+    if (payment?.bill_no) {
+      if (billTab) {
+        billTab.location.href = getSummaryBillUrl(payment.bill_no);
+      } else {
+        // The popup was blocked: open it now as a fallback.
+        window.open(getSummaryBillUrl(payment.bill_no), "_blank");
+      }
+    } else {
+      billTab?.close();
+    }
   };
 
   return (

@@ -1,7 +1,8 @@
 import { EMPTY } from "./billHelpers";
 
-// A label/value list. Rows with no value are left out, so a missing optional
-// field (email, trainer...) never shows an empty line.
+// A label / value list in receipt style: dotted rule between rows. Rows with
+// no value are left out, so a missing optional field (email, trainer...) never
+// shows an empty line.
 function DetailList({ rows, className = "" }) {
   const visible = rows.filter(
     ({ value }) => value !== undefined && value !== null && value !== "",
@@ -10,15 +11,15 @@ function DetailList({ rows, className = "" }) {
   if (visible.length === 0) return null;
 
   return (
-    <dl className={`divide-y text-sm ${className}`}>
+    <dl className={`text-sm ${className}`}>
       {visible.map(({ label, value }) => (
         <div
           key={label}
-          className="flex items-baseline justify-between gap-6 py-2.5 first:pt-0 last:pb-0"
+          className="flex items-baseline justify-between gap-4 border-b border-dotted border-zinc-300 py-2 last:border-b-0"
         >
-          <dt className="shrink-0 text-muted-foreground">{label}</dt>
-          <dd className="min-w-0 text-right font-medium break-words">
-            {value === EMPTY ? <span className="text-muted-foreground">{value}</span> : value}
+          <dt className="shrink-0 text-zinc-600">{label}</dt>
+          <dd className="min-w-0 text-right font-medium break-words text-zinc-900">
+            {value === EMPTY ? <span className="text-zinc-500">{value}</span> : value}
           </dd>
         </div>
       ))}

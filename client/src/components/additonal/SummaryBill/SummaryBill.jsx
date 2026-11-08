@@ -12,9 +12,24 @@ import SubscriptionDetails from "./SubscriptionDetails";
 import TermsAndConditions from "./TermsAndConditions";
 import { createMoneyFormatter } from "./billHelpers";
 
+// Printed bills are landscape, matching the wide on-screen layout.
+const PRINT_PAGE = "@page { size: A4 landscape; margin: 8mm; }";
+
+// Colour of the page behind the bill; the tear-off notches on the phone layout
+// are cut out in this colour (see pages/summary-bill).
+const NOTCH = "absolute size-7 rounded-full border border-zinc-300 bg-zinc-200 print:hidden";
+
 /**
  * Summary bill for one subscription. Built for members first (they open it on
  * a phone from the branch's subbill_url) and for staff users second.
+ *
+ * Layout
+ *   - Large screens: a landscape bill. Branch band on top; items on the left;
+ *     a tear-off stub on the right with the total, balance and payment.
+ *   - Phones: the same bill as a portrait receipt. Everything stacks in
+ *     reading order and the totals sit on a stub at the bottom.
+ * The bill has its own fixed colours (white paper, black ink, red for balance
+ * due, green / amber for status) and does not use the app theme.
  *
  * bill = {
  *   branch:  { name, logo, code, address, phone, currency },          // branches
@@ -52,58 +67,74 @@ function SummaryBill({
 
   const { branch = {}, summary = {}, member, items = [], payment = {}, issued_by } = bill;
   const status = payment.status ?? "draft";
-  const indicatebalance = payment.balance ? "pending":"completed";
+
+  // The stamp in the header: a draft or cancelled bill keeps that status;
+  // otherwise it is "pending" while a balance is owed and "paid" once cleared.
+  const stampStatus =
+    status === "draft" || status === "cancelled"
+      ? status
+      : payment.balance
+        ? "pending"
+        : "completed";
 
   return (
-    <div className={`mx-auto w-full max-w-4xl space-y-4 ${className}`}>
+    <div className={`mx-auto w-full max-w-2xl space-y-3 lg:max-w-6xl ${className}`}>
+      <style>{PRINT_PAGE}</style>
+
       {showActions && <BillActions onPrint={onPrint} />}
 
       <article
         aria-label={`Summary bill ${summary.bill_no ?? ""}`}
-        className="overflow-hidden rounded-2xl border bg-card text-card-foreground print:rounded-none print:border-0"
+        className="overflow-hidden rounded-lg border border-zinc-300 bg-white text-zinc-900 shadow-sm print:rounded-none print:border-0 print:shadow-none"
       >
-        <BillHeader
-          branch={branch}
-          summary={summary}
-          status={indicatebalance}
-        />
+        <BillHeader branch={branch} summary={summary} status={stampStatus} />
 
-        <MembershipPeriod
-          startDate={summary.start_date}
-          endDate={summary.end_date}
-          today={today ?? fallbackToday}
-        />
+        <div className="lg:flex">
+          {/* Who and what: member, subscription, period and the items. */}
+          <div className="min-w-0 lg:flex-1">
+            <div className="grid border-b border-zinc-300 sm:grid-cols-2">
+              <MemberDetails member={member} className="sm:border-r sm:border-zinc-300" />
+              <SubscriptionDetails
+                summary={summary}
+                branch={branch}
+                issuedBy={issued_by}
+                className="border-t border-zinc-300 sm:border-t-0"
+              />
+            </div>
 
-        <div className="grid border-b md:grid-cols-2">
-          <MemberDetails member={member} className="md:border-r" />
-          <SubscriptionDetails
-            summary={summary}
-            branch={branch}
-            issuedBy={issued_by}
-            className="border-t md:border-t-0"
-          />
+            <MembershipPeriod
+              startDate={summary.start_date}
+              endDate={summary.end_date}
+              today={today ?? fallbackToday}
+            />
+
+            <BillItems items={items} money={money} />
+          </div>
+
+          {/* The tear-off stub: what it adds up to and how it was paid.
+              Below the items on phones, to the right on wide screens. */}
+          <aside
+            aria-label="Totals and payment"
+            className="relative border-t-2 border-dashed border-zinc-400 bg-zinc-50 lg:w-88 lg:shrink-0 lg:border-t-0 lg:border-l-2 print:break-inside-avoid [print-color-adjust:exact]"
+          >
+            <span aria-hidden="true" className={`${NOTCH} -top-3.5 -left-3.5 lg:hidden`} />
+            <span aria-hidden="true" className={`${NOTCH} -top-3.5 -right-3.5 lg:hidden`} />
+
+            <PriceSummary
+              summary={summary}
+              payment={payment}
+              status={status}
+              money={money}
+            />
+            <PaymentInfo
+              status={status}
+              payment={payment}
+              className="border-t border-zinc-300"
+            />
+          </aside>
         </div>
 
-        <BillItems items={items} money={money} className="border-b" />
-
-        {/* Summary comes first in the markup so phones see the total before the
-            payment details; on wide screens payment sits on the left. */}
-        <div className="grid border-b md:grid-cols-2">
-          <PriceSummary
-            summary={summary}
-            payment={payment}
-            status={status}
-            money={money}
-            className="md:order-2"
-          />
-          <PaymentInfo
-            status={status}
-            payment={payment}
-            className="border-t md:order-1 md:border-t-0 md:border-r"
-          />
-        </div>
-
-        <TermsAndConditions terms={terms} className="border-b" />
+        <TermsAndConditions terms={terms} className="border-t border-zinc-300" />
 
         <BillFooter branch={branch} />
       </article>

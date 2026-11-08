@@ -21,10 +21,12 @@ function Subscriptions() {
   // The payment method chosen for this bill (an id from the dropdown).
   const [paymentMethodId, setPaymentMethodId] = useState(null);
 
+  // Returns the saved payment (it holds `bill_no`) so the footer can open the
+  // bill; returns null when nothing was saved.
   const handlePay = async ({ paidPriceMinor }) => {
     if (!paymentMethodId) {
       notifyError("Select a payment method");
-      return;
+      return null;
     }
 
     let result;
@@ -33,7 +35,7 @@ function Subscriptions() {
       result = await pay({ paymentId: paymentMethodId, paidPriceMinor });
     } catch {
       // The hook shows the error; keep the bill and the chosen method.
-      return;
+      return null;
     }
 
     if (result.payments_status === "pending") {
@@ -46,6 +48,8 @@ function Subscriptions() {
       notifySuccess("Payment completed");
     }
     setPaymentMethodId(null);
+
+    return result;
   };
 
   return (
