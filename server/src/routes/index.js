@@ -15,6 +15,7 @@ const initRoutes = require("./init/initRoutes");
 const dashboardRoutes = require("./dashboard/dashboardRoutes");
 const groupRoutes = require("./group/groupRoutes");
 const branchRoutes = require("./branch/branchRoutes");
+const uploadRoutes = require("./upload/uploadRoutes");
 
 const router = express.Router();
 
@@ -33,6 +34,7 @@ router.use("/init", tokenVerify, initRoutes);
 router.use("/dashboard", tokenVerify, dashboardRoutes);
 router.use("/group", tokenVerify, groupRoutes);
 router.use("/branch", tokenVerify, branchRoutes);
+router.use("/upload", tokenVerify, uploadRoutes);
 
 // Future feature routes
 // router.use("/users", userRoutes);
